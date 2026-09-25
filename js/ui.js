@@ -45,6 +45,15 @@ class MusicOSUI {
     player.on('repeatchange', (mode) => this.handleRepeatChange(mode));
     player.on('listeningtimeupdate', () => this.renderStats());
 
+    // Listen to playlist data changes to synchronize sidebar and views automatically
+    window.addEventListener('playlistschange', () => {
+      this.renderSidebarPlaylists();
+      if (this.currentView === 'Home') {
+        this.renderPlaylists();
+      }
+      this.renderStats();
+    });
+
     // Update greeting every minute
     setInterval(() => this.updateGreetingIST(), 60000);
   }
@@ -1609,25 +1618,6 @@ class MusicOSUI {
     this.bindFilterChips();
     this.bindContinueListening();
     this.updatePlayerBar(curTrack);
-  }
-
-    if (viewName === 'Library') {
-      this.renderLibraryView(main, topbarHTML);
-    } else if (viewName === 'Playlists') {
-      this.renderPlaylistsListView(main, topbarHTML);
-    } else if (viewName === 'Artists') {
-      this.renderArtistsView(main, topbarHTML);
-    } else if (viewName === 'Albums') {
-      this.renderAlbumsView(main, topbarHTML);
-    } else if (viewName === 'Analytics') {
-      this.renderAnalyticsView(main, topbarHTML);
-    } else if (viewName === 'Import Music') {
-      this.renderImportMusicView(main, topbarHTML);
-    } else if (viewName === 'Settings') {
-      this.renderSettingsView(main, topbarHTML);
-    } else if (viewName === 'Liked Songs') {
-      this.renderLikedSongsView(main, topbarHTML);
-    }
   }
 
   renderLibraryView(container, topbarHTML) {

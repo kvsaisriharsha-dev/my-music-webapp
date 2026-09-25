@@ -324,6 +324,12 @@ class MusicOSDataStore {
     this.saveState("music_os_queue", this.queue);
   }
 
+  notifyPlaylistsChange() {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("playlistschange", { detail: { playlists: this.playlists } }));
+    }
+  }
+
   createPlaylist(name, category = "Custom") {
     const newPlaylist = {
       id: `pl-${Date.now()}`,
@@ -336,6 +342,7 @@ class MusicOSDataStore {
     };
     this.playlists.unshift(newPlaylist);
     this.saveState("music_os_playlists", this.playlists);
+    this.notifyPlaylistsChange();
     return newPlaylist;
   }
 
@@ -350,6 +357,7 @@ class MusicOSDataStore {
     });
     playlist.count = playlist.songIds.length;
     this.saveState("music_os_playlists", this.playlists);
+    this.notifyPlaylistsChange();
     return true;
   }
 
@@ -359,6 +367,7 @@ class MusicOSDataStore {
     playlist.songIds = playlist.songIds.filter(id => id !== songId);
     playlist.count = playlist.songIds.length;
     this.saveState("music_os_playlists", this.playlists);
+    this.notifyPlaylistsChange();
     return true;
   }
 
@@ -465,6 +474,7 @@ class MusicOSDataStore {
     if (playlistId === 'pl-liked') return false; // Protected default playlist
     this.playlists = this.playlists.filter(p => p.id !== playlistId);
     this.saveState("music_os_playlists", this.playlists);
+    this.notifyPlaylistsChange();
     return true;
   }
 
@@ -490,6 +500,7 @@ class MusicOSDataStore {
       if (Array.isArray(data.playlists)) {
         this.playlists = data.playlists;
         this.saveState("music_os_playlists", this.playlists);
+        this.notifyPlaylistsChange();
       }
       if (data.listeningSeconds) {
         this.listeningSeconds = data.listeningSeconds;
@@ -513,6 +524,7 @@ class MusicOSDataStore {
     this.saveState("music_os_playlists", this.playlists);
     this.saveState("music_os_queue", this.queue);
     localStorage.setItem("music_os_listening_seconds", "0");
+    this.notifyPlaylistsChange();
   }
 
   getStats() {
