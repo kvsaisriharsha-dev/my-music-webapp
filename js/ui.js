@@ -1590,6 +1590,8 @@ class MusicOSUI {
 
     if (viewName === 'Home') {
       this.renderHomeView(main, topbarHTML);
+    } else if (viewName === 'Search') {
+      this.renderSearchView(main, topbarHTML);
     } else if (viewName === 'Library') {
       this.renderLibraryView(main, topbarHTML);
     } else if (viewName === 'Playlists') {
@@ -2110,6 +2112,137 @@ class MusicOSUI {
         });
       });
     });
+  }
+
+  renderSearchView(container, topbarHTML) {
+    const allSongs = dataStore.getSongs();
+    const allPlaylists = dataStore.getPlaylists();
+    const allAlbums = dataStore.getAlbums();
+
+    container.innerHTML = `
+      ${topbarHTML}
+      <section class="section-header" style="margin-top: 12px;">
+        <h2 class="section-title">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <span id="search-view-title">Search Catalog & Lounge</span>
+        </h2>
+      </section>
+
+      <div id="search-results-content" style="display: flex; flex-direction: column; gap: 20px;">
+        <!-- Tracks Section -->
+        <section id="search-tracks-section">
+          <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <span>🎵 Songs & Tracks</span>
+            <span id="search-songs-count" style="font-size: 11px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 9999px;">${allSongs.length}</span>
+          </div>
+          <div class="tracks-grid" id="search-tracks-grid">
+            ${this.generateTracksGridHTML(allSongs)}
+          </div>
+        </section>
+
+        <!-- Playlists Section -->
+        <section id="search-playlists-section">
+          <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <span>📑 Playlists</span>
+            <span id="search-playlists-count" style="font-size: 11px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 9999px;">${allPlaylists.length}</span>
+          </div>
+          <div class="playlists-grid" id="search-playlists-grid">
+            ${allPlaylists.map(pl => `
+              <div class="playlist-card glass-card" data-playlist-id="${pl.id}">
+                <div class="playlist-art-wrapper" style="background: ${pl.gradient};">
+                  <svg viewBox="0 0 100 100" class="playlist-svg">
+                    <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="6"/>
+                    <circle cx="50" cy="50" r="14" fill="rgba(255,255,255,0.25)"/>
+                    <path d="M46 40 L60 50 L46 60 Z" fill="#ffffff" opacity="0.9"/>
+                  </svg>
+                  <button class="playlist-quick-play" title="Play ${pl.name}">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                  </button>
+                </div>
+                <div class="playlist-info">
+                  <div class="playlist-header-row">
+                    <div class="playlist-name">${pl.name}</div>
+                    ${pl.isFavorite ? `<span style="color: var(--color-pink); font-size: 13px;">♥</span>` : ''}
+                  </div>
+                  <div class="playlist-count">${pl.count} tracks • ${pl.category}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+
+        <!-- Albums Section -->
+        <section id="search-albums-section">
+          <div style="font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <span>💿 Albums</span>
+            <span id="search-albums-count" style="font-size: 11px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 9999px;">${allAlbums.length}</span>
+          </div>
+          <div class="playlists-grid" id="search-albums-grid">
+            ${allAlbums.map(al => `
+              <div class="playlist-card glass-card album-card" data-album="${al.name}">
+                <div class="playlist-art-wrapper">
+                  ${this.getCoverSVG(al.name, al.genre)}
+                </div>
+                <div class="playlist-info">
+                  <div class="playlist-name">${al.name}</div>
+                  <div class="playlist-count">${al.artist} • ${al.count} track${al.count > 1 ? 's' : ''}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      </div>
+    `;
+    this.rebindTopbar();
+    this.bindTrackCardEvents(container);
+
+    container.querySelectorAll('#search-playlists-grid .playlist-card[data-playlist-id]').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const plId = card.getAttribute('data-playlist-id');
+        if (e.target.closest('.playlist-quick-play')) {
+          e.stopPropagation();
+          const plSongs = dataStore.getSongsByPlaylist(plId);
+          if (plSongs.length) {
+            dataStore.queue = [...plSongs];
+            dataStore.saveState('music_os_queue', dataStore.queue);
+            player.loadTrack(0, true);
+            this.renderQueue();
+            this.showToast(`Playing playlist: ${card.querySelector('.playlist-name').textContent}`);
+          }
+        } else {
+          this.renderPlaylistDetailView(plId);
+        }
+      });
+    });
+
+    container.querySelectorAll('#search-albums-grid .album-card[data-album]').forEach(card => {
+      card.addEventListener('click', () => {
+        const album = card.getAttribute('data-album');
+        const albumSongs = dataStore.getSongsByAlbum(album);
+        container.innerHTML = `
+          ${topbarHTML}
+          <section class="section-header" style="margin-top: 12px;">
+            <h2 class="section-title"><span>${album}</span></h2>
+            <button id="back-to-search" class="source-pill">← Back to Search</button>
+          </section>
+          <div class="tracks-grid">
+            ${this.generateTracksGridHTML(albumSongs)}
+          </div>
+        `;
+        this.rebindTopbar();
+        this.bindTrackCardEvents(container);
+        container.querySelector('#back-to-search')?.addEventListener('click', () => {
+          this.renderSearchView(container, topbarHTML);
+        });
+      });
+    });
+
+    const searchInput = document.getElementById('main-search-input');
+    if (searchInput) {
+      searchInput.focus();
+    }
   }
 
   renderAnalyticsView(container, topbarHTML) {
@@ -2826,6 +2959,9 @@ class MusicOSUI {
       } else if (view === 'Library') {
         const grid = document.getElementById('library-tracks-grid');
         if (grid) grid.innerHTML = providerCard;
+      } else if (view === 'Search') {
+        const tracksGrid = document.getElementById('search-tracks-grid');
+        if (tracksGrid) tracksGrid.innerHTML = providerCard;
       }
       return;
     }
@@ -2839,6 +2975,116 @@ class MusicOSUI {
         this.renderRecentlyPlayed(displaySongs);
         this.renderPlaylists(playlists);
       }
+    } else if (view === 'Search') {
+      const tracksGrid = document.getElementById('search-tracks-grid');
+      const playlistsGrid = document.getElementById('search-playlists-grid');
+      const albumsGrid = document.getElementById('search-albums-grid');
+      const songsCountEl = document.getElementById('search-songs-count');
+      const playlistsCountEl = document.getElementById('search-playlists-count');
+      const albumsCountEl = document.getElementById('search-albums-count');
+
+      if (tracksGrid) {
+        if (songs && songs.length > 0) {
+          tracksGrid.innerHTML = this.generateTracksGridHTML(songs);
+          this.bindTrackCardEvents(document.querySelector('.main-content'));
+        } else {
+          tracksGrid.innerHTML = `<div style="grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">No matching songs found.</div>`;
+        }
+      }
+      if (songsCountEl) songsCountEl.textContent = (songs || []).length;
+
+      if (playlistsGrid) {
+        if (playlists && playlists.length > 0) {
+          playlistsGrid.innerHTML = playlists.map(pl => `
+            <div class="playlist-card glass-card" data-playlist-id="${pl.id}">
+              <div class="playlist-art-wrapper" style="background: ${pl.gradient};">
+                <svg viewBox="0 0 100 100" class="playlist-svg">
+                  <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="6"/>
+                  <circle cx="50" cy="50" r="14" fill="rgba(255,255,255,0.25)"/>
+                  <path d="M46 40 L60 50 L46 60 Z" fill="#ffffff" opacity="0.9"/>
+                </svg>
+                <button class="playlist-quick-play" title="Play ${pl.name}">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="playlist-info">
+                <div class="playlist-header-row">
+                  <div class="playlist-name">${pl.name}</div>
+                  ${pl.isFavorite ? `<span style="color: var(--color-pink); font-size: 13px;">♥</span>` : ''}
+                </div>
+                <div class="playlist-count">${pl.count} tracks • ${pl.category}</div>
+              </div>
+            </div>
+          `).join('');
+
+          playlistsGrid.querySelectorAll('.playlist-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+              const plId = card.getAttribute('data-playlist-id');
+              if (e.target.closest('.playlist-quick-play')) {
+                e.stopPropagation();
+                const plSongs = dataStore.getSongsByPlaylist(plId);
+                if (plSongs.length) {
+                  dataStore.queue = [...plSongs];
+                  dataStore.saveState('music_os_queue', dataStore.queue);
+                  player.loadTrack(0, true);
+                  this.renderQueue();
+                  this.showToast(`Playing playlist: ${card.querySelector('.playlist-name').textContent}`);
+                }
+              } else {
+                this.renderPlaylistDetailView(plId);
+              }
+            });
+          });
+        } else {
+          playlistsGrid.innerHTML = `<div style="grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">No matching playlists found.</div>`;
+        }
+      }
+      if (playlistsCountEl) playlistsCountEl.textContent = (playlists || []).length;
+
+      if (albumsGrid) {
+        if (albums && albums.length > 0) {
+          albumsGrid.innerHTML = albums.map(al => `
+            <div class="playlist-card glass-card album-card" data-album="${al.name}">
+              <div class="playlist-art-wrapper">
+                ${this.getCoverSVG(al.name, al.genre)}
+              </div>
+              <div class="playlist-info">
+                <div class="playlist-name">${al.name}</div>
+                <div class="playlist-count">${al.artist} • ${al.count} track${al.count > 1 ? 's' : ''}</div>
+              </div>
+            </div>
+          `).join('');
+
+          albumsGrid.querySelectorAll('.album-card').forEach(card => {
+            card.addEventListener('click', () => {
+              const album = card.getAttribute('data-album');
+              const albumSongs = dataStore.getSongsByAlbum(album);
+              const main = document.querySelector('.main-content');
+              const topbarHTML = document.querySelector('.topbar')?.outerHTML || '';
+              main.innerHTML = `
+                ${topbarHTML}
+                <section class="section-header" style="margin-top: 12px;">
+                  <h2 class="section-title"><span>${album}</span></h2>
+                  <button id="back-to-search" class="source-pill">← Back to Search</button>
+                </section>
+                <div class="tracks-grid">
+                  ${this.generateTracksGridHTML(albumSongs)}
+                </div>
+              `;
+              this.rebindTopbar();
+              this.bindTrackCardEvents(main);
+              main.querySelector('#back-to-search')?.addEventListener('click', () => {
+                this.renderSearchView(main, topbarHTML);
+              });
+            });
+          });
+        } else {
+          albumsGrid.innerHTML = `<div style="grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">No matching albums found.</div>`;
+        }
+      }
+      if (albumsCountEl) albumsCountEl.textContent = (albums || []).length;
     } else if (view === 'Playlists') {
       const grid = document.getElementById('playlists-grid');
       if (grid) {
@@ -2858,7 +3104,10 @@ class MusicOSUI {
                 </button>
               </div>
               <div class="playlist-info">
-                <div class="playlist-name">${pl.name}</div>
+                <div class="playlist-header-row">
+                  <div class="playlist-name">${pl.name}</div>
+                  ${pl.isFavorite ? `<span style="color: var(--color-pink); font-size: 13px;">♥</span>` : ''}
+                </div>
                 <div class="playlist-count">${pl.count} tracks • ${pl.category}</div>
               </div>
             </div>

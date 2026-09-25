@@ -89,14 +89,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       themeManager.openRightPanel();
       const themeTile = document.querySelector('.themes-panel-card');
       if (themeTile) themeTile.scrollIntoView({ behavior: 'smooth' });
-    } else if (navId === 'Search') {
-      const searchInput = document.getElementById('main-search-input');
-      if (searchInput) {
-        searchInput.focus();
-        searchInput.select();
-      }
-    } else if (navId === 'Home') {
-      ui.renderView('Home');
     } else {
       ui.renderView(navId);
     }
