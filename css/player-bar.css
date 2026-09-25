@@ -1,0 +1,526 @@
+/* ==========================================================================
+   MUSIC OS - Bottom Player Bar Styles
+   ========================================================================== */
+
+.player-bar {
+  grid-area: player;
+  height: var(--player-bar-height);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  background: var(--bg-glass);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--border-glass);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.4);
+  position: relative;
+  z-index: 50;
+}
+
+/* Glowing Top Accent Line */
+.player-bar::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent-primary) 30%, var(--accent-secondary) 70%, transparent);
+  opacity: 0.7;
+}
+
+/* 1. Left Track Information Area */
+.player-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 280px;
+  min-width: 200px;
+}
+
+.player-thumb-wrapper {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+
+.player-thumb-wrapper svg,
+.player-thumb-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.player-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.player-song-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-song-artist {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-actions-left {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* 2. Center Audio Controls & Seek Bar Area */
+.player-center {
+  flex: 1;
+  max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.ctrl-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+
+.ctrl-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.08);
+}
+
+.ctrl-btn.active {
+  color: var(--accent-primary);
+  position: relative;
+}
+
+.ctrl-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--accent-primary);
+}
+
+.play-pause-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-full);
+  background: var(--accent-gradient);
+  color: #ffffff;
+  box-shadow: var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal);
+}
+
+.play-pause-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 28px var(--accent-primary);
+}
+
+.play-pause-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.play-pause-btn svg.play-icon {
+  margin-left: 2px;
+}
+
+/* Progress & Seek Bar */
+.progress-container {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.time-label {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  min-width: 35px;
+  text-align: center;
+}
+
+.seek-bar-track {
+  flex: 1;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  position: relative;
+  cursor: pointer;
+  transition: height var(--transition-fast);
+}
+
+.seek-bar-track:hover {
+  height: 7px;
+}
+
+.seek-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 0%;
+  background: var(--accent-gradient);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.seek-thumb {
+  position: absolute;
+  top: 50%;
+  right: -6px;
+  transform: translateY(-50%) scale(0);
+  width: 13px;
+  height: 13px;
+  border-radius: var(--radius-full);
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5), var(--accent-glow);
+  transition: transform var(--transition-fast);
+  pointer-events: none;
+}
+
+.seek-bar-track:hover .seek-thumb,
+.seek-bar-track.dragging .seek-thumb {
+  transform: translateY(-50%) scale(1);
+}
+
+/* 3. Right Volume & Extra Tools Area */
+.player-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  width: 280px;
+  min-width: 200px;
+}
+
+.volume-container {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.volume-bar-track {
+  width: 88px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-full);
+  position: relative;
+  cursor: pointer;
+  transition: height var(--transition-fast);
+}
+
+.volume-bar-track:hover {
+  height: 6px;
+}
+
+.volume-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 75%;
+  background: var(--accent-gradient);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   FLOATING ADJUSTABLE & MOVABLE LYRICS + MINI PLAYER WINDOW
+   ========================================================================== */
+.floating-lyrics-window {
+  position: fixed;
+  bottom: 105px;
+  right: 24px;
+  width: 360px;
+  height: 480px;
+  min-width: 280px;
+  min-height: 260px;
+  max-width: 90vw;
+  max-height: 85vh;
+  z-index: 950;
+  display: none;
+  flex-direction: column;
+  background: rgba(15, 10, 36, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), var(--accent-glow);
+  overflow: hidden;
+  resize: both;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.floating-lyrics-window.visible {
+  display: flex;
+}
+
+.floating-lyrics-window.minimized {
+  height: 60px !important;
+  min-height: 60px !important;
+  resize: none;
+}
+
+.floating-lyrics-window.minimized .floating-body {
+  display: none;
+}
+
+/* Floating Window Header (Drag Handle) */
+.floating-header {
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--border-glass);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: grab;
+  user-select: none;
+}
+
+.floating-header:active {
+  cursor: grabbing;
+}
+
+.floating-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-header-title svg {
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.floating-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.floating-action-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all var(--transition-fast);
+}
+
+.floating-action-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+/* Floating Window Body */
+.floating-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Floating Mini Controls */
+.floating-mini-player {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-glass);
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.floating-track-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.floating-thumb {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.floating-track-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.floating-song-title {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floating-song-artist {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.floating-mini-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Floating Lyrics List */
+.floating-lyrics-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+  scroll-behavior: smooth;
+}
+
+.floating-lyric-line {
+  font-size: var(--text-sm);
+  color: var(--text-faint);
+  line-height: 1.5;
+  padding: 6px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.floating-lyric-line:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(1.02);
+}
+
+.floating-lyric-line.active {
+  color: #ffffff;
+  font-size: var(--text-base);
+  font-weight: 700;
+  background: rgba(168, 85, 247, 0.18);
+  border-left: 3px solid var(--accent-primary);
+  border-right: 3px solid var(--accent-primary);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+  transform: scale(1.04);
+}
+
+/* ==========================================================================
+   FLOATING ADJUSTABLE & MOVABLE QUEUE WINDOW
+   ========================================================================== */
+.floating-queue-window {
+  position: fixed;
+  bottom: 105px;
+  right: 400px;
+  width: 360px;
+  height: 480px;
+  min-width: 280px;
+  min-height: 260px;
+  max-width: 90vw;
+  max-height: 85vh;
+  z-index: 950;
+  display: none;
+  flex-direction: column;
+  background: rgba(15, 10, 36, 0.88);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), var(--accent-glow);
+  overflow: hidden;
+  resize: both;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+@media (max-width: 800px) {
+  .floating-queue-window {
+    right: 12px;
+    width: calc(100vw - 24px);
+  }
+}
+
+.floating-queue-window.visible {
+  display: flex;
+}
+
+.floating-queue-window.minimized {
+  height: 60px !important;
+  min-height: 60px !important;
+  resize: none;
+}
+
+.floating-queue-window.minimized .floating-body {
+  display: none;
+}
+
+.floating-queue-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+

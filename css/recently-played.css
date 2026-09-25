@@ -1,0 +1,194 @@
+/* ==========================================================================
+   MUSIC OS - Recently Played Grid & Track Cards
+   ========================================================================== */
+
+.recently-played-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.tracks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.track-card {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  position: relative;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.track-card.active-playing {
+  border-color: var(--accent-primary);
+  background: var(--bg-glass-active);
+  box-shadow: var(--accent-glow-subtle);
+}
+
+.track-card.active-playing::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  border-radius: 4px 0 0 4px;
+  background: var(--accent-gradient);
+}
+
+.track-thumb-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  background: #15102a;
+}
+
+.track-thumb-box svg,
+.track-thumb-box img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-smooth);
+}
+
+.track-card:hover .track-thumb-box svg,
+.track-card:hover .track-thumb-box img {
+  transform: scale(1.06);
+}
+
+/* Play Overlay Badge on Thumbnail */
+.track-play-badge {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.track-play-badge-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-full);
+  background: var(--accent-gradient);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--accent-glow);
+  transform: scale(0.85);
+  transition: transform var(--transition-fast);
+}
+
+.track-card:hover .track-play-badge {
+  opacity: 1;
+}
+
+.track-card:hover .track-play-badge-btn {
+  transform: scale(1);
+}
+
+/* Equalizer Bars Animation */
+.mini-equalizer {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 16px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+}
+
+.eq-bar {
+  width: 3px;
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 1px;
+  animation: eq-bounce 1.2s ease-in-out infinite alternate;
+}
+
+.eq-bar:nth-child(1) { animation-delay: 0.1s; height: 60%; }
+.eq-bar:nth-child(2) { animation-delay: 0.3s; height: 100%; }
+.eq-bar:nth-child(3) { animation-delay: 0.2s; height: 40%; }
+.eq-bar:nth-child(4) { animation-delay: 0.4s; height: 80%; }
+
+@keyframes eq-bounce {
+  0% { transform: scaleY(0.2); }
+  50% { transform: scaleY(1); }
+  100% { transform: scaleY(0.4); }
+}
+
+/* Track Metadata */
+.track-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.track-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.track-title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-artist {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-icon-sm {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+}
+
+.btn-icon-sm:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+}
+
+.btn-icon-sm.liked, .btn-icon-sm.active {
+  color: var(--color-pink);
+}
+
+.btn-icon-sm.liked svg, .btn-icon-sm.active svg {
+  fill: var(--color-pink);
+}

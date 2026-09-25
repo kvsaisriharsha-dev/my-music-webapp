@@ -1,0 +1,251 @@
+/* ==========================================================================
+   MUSIC OS - Playlists Grid & Cards
+   ========================================================================== */
+
+.playlists-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.playlists-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: var(--space-4);
+}
+
+.playlist-card {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  cursor: pointer;
+  position: relative;
+  border-radius: var(--radius-lg);
+  transition: all var(--transition-normal);
+}
+
+.playlist-art-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  background: #181232;
+}
+
+.playlist-art-wrapper svg, 
+.playlist-art-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform var(--transition-smooth);
+}
+
+.playlist-card:hover .playlist-art-wrapper svg,
+.playlist-card:hover .playlist-art-wrapper img {
+  transform: scale(1.08);
+}
+
+/* Quick Play Floating Button on Card */
+.playlist-quick-play {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--accent-gradient);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), var(--accent-glow);
+  opacity: 0;
+  transform: translateY(10px) scale(0.9);
+  transition: all var(--transition-normal);
+  z-index: 5;
+}
+
+.playlist-quick-play svg {
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+}
+
+.playlist-card:hover .playlist-quick-play {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.playlist-quick-play:hover {
+  transform: scale(1.12) !important;
+}
+
+.playlist-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.playlist-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  position: relative;
+}
+
+.playlist-name {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.playlist-count {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Playlist More Options Button */
+.playlist-more-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all var(--transition-fast);
+  opacity: 0.7;
+}
+
+.playlist-card:hover .playlist-more-btn {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.playlist-more-btn:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff;
+  border-color: var(--border-glass-hover);
+}
+
+/* Playlist Dropdown Options Menu */
+.playlist-dropdown-menu {
+  position: absolute;
+  top: 32px;
+  right: 0;
+  width: 175px;
+  background: rgba(18, 12, 40, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass-active);
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), var(--accent-glow-subtle);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 100;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.playlist-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  width: 100%;
+  text-align: left;
+}
+
+.playlist-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.playlist-dropdown-item.danger {
+  color: #f43f5e;
+}
+
+.playlist-dropdown-item.danger:hover {
+  background: rgba(244, 63, 94, 0.15);
+  color: #ff4d6d;
+}
+
+/* Add Songs Modal Overlay */
+.add-songs-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.add-songs-modal-card {
+  width: 100%;
+  max-width: 520px;
+  max-height: 85vh;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: rgba(20, 14, 45, 0.92);
+  border: 1px solid var(--accent-primary);
+  box-shadow: var(--accent-glow);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.add-songs-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 380px;
+  padding-right: 4px;
+}
+
+.add-song-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-glass);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.add-song-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-glass-hover);
+}
+
+.add-song-row.selected {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: var(--accent-primary);
+}
+

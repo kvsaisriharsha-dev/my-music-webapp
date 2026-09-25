@@ -1,0 +1,177 @@
+/* ==========================================================================
+   MUSIC OS - Responsive Styles & Mobile Drawers
+   ========================================================================== */
+
+/* Drawer Backdrops */
+.panel-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  z-index: 90;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--transition-normal);
+}
+
+.panel-backdrop.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ==========================================================================
+   TABLETS & SMALL DESKTOPS (Max-width: 1200px)
+   ========================================================================== */
+@media (max-width: 1200px) {
+  #app {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+    grid-template-areas:
+      "sidebar main"
+      "player player";
+  }
+
+  .right-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 360px;
+    height: calc(100vh - var(--player-bar-height));
+    transform: translateX(100%);
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.6);
+    z-index: 100;
+    transition: transform var(--transition-smooth);
+  }
+
+  .right-panel.drawer-open {
+    transform: translateX(0);
+  }
+
+  .right-panel-close-btn {
+    display: flex !important;
+  }
+
+  .continue-listening-wrapper {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ==========================================================================
+   TABLETS & LARGE PHONES (Max-width: 800px)
+   ========================================================================== */
+@media (max-width: 800px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "main"
+      "player";
+  }
+
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    height: 100vh;
+    transform: translateX(-100%);
+    box-shadow: 10px 0 30px rgba(0, 0, 0, 0.6);
+    z-index: 100;
+    transition: transform var(--transition-smooth);
+  }
+
+  .sidebar.drawer-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-close-btn {
+    display: flex !important;
+  }
+
+  .main-content {
+    padding: var(--space-4);
+    gap: var(--space-4);
+  }
+
+  .topbar {
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .source-pills {
+    display: none;
+  }
+
+  .continue-card {
+    flex-direction: column;
+    text-align: center;
+    gap: var(--space-3);
+  }
+
+  .continue-art-wrapper {
+    width: 90px;
+    height: 90px;
+  }
+
+  .continue-progress-row {
+    width: 100%;
+  }
+
+  /* Compact Player Bar */
+  .player-bar {
+    padding: 0 var(--space-3);
+  }
+
+  .player-left {
+    width: auto;
+    max-width: 140px;
+  }
+
+  .player-thumb-wrapper {
+    width: 42px;
+    height: 42px;
+  }
+
+  .player-actions-left {
+    display: none;
+  }
+
+  .player-right .volume-container {
+    display: none;
+  }
+
+  .player-right {
+    width: auto;
+    min-width: 0;
+  }
+}
+
+/* ==========================================================================
+   PHONES (Max-width: 500px)
+   ========================================================================== */
+@media (max-width: 500px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .greeting-title {
+    font-size: var(--text-xl);
+  }
+
+  .time-label {
+    font-size: 0.65rem;
+  }
+
+  .playlists-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tracks-grid {
+    grid-template-columns: 1fr;
+  }
+}

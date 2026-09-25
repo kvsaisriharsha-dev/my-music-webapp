@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="aurora">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MUSIC OS – Your Personal Music Lounge</title>
+  <meta name="description" content="A premium dark glassmorphism music lounge with aurora visuals, YouTube search, and real-time audio controls.">
+
+  <!-- Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Modular Stylesheets -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/sidebar.css">
+  <link rel="stylesheet" href="css/topbar.css">
+  <link rel="stylesheet" href="css/hero.css">
+  <link rel="stylesheet" href="css/stats.css">
+  <link rel="stylesheet" href="css/playlists.css">
+  <link rel="stylesheet" href="css/recently-played.css">
+  <link rel="stylesheet" href="css/right-panel.css">
+  <link rel="stylesheet" href="css/player-bar.css">
+  <link rel="stylesheet" href="css/responsive.css">
+</head>
+<body data-theme="aurora">
+
+  <!-- Dynamic CSS/SVG Aurora Landscape Background -->
+  <div id="background-canvas" class="background-canvas" aria-hidden="true">
+    <div id="bg-theme-layer" class="bg-layer bg-theme-layer"></div>
+    <div class="bg-layer bg-aurora-sky"></div>
+    <div class="bg-layer bg-stars"></div>
+    <div class="bg-layer bg-aurora-glow"></div>
+    <div class="bg-layer bg-aurora-streaks"></div>
+
+    <!-- Theme Specific Dynamic Visuals -->
+    <div class="bg-layer bg-ocean-waves-container">
+      <svg class="bg-ocean-waves" viewBox="0 0 1440 320" preserveAspectRatio="none">
+        <path fill="rgba(6, 182, 212, 0.25)" d="M0,192L48,181.3C96,171,192,150,288,160C384,171,480,213,576,213.3C672,213,768,171,864,165.3C960,160,1056,192,1152,197.3C1248,203,1344,181,1392,170.7L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+        <path fill="rgba(59, 130, 246, 0.35)" d="M0,224L60,208C120,192,240,160,360,170.7C480,181,600,235,720,240C840,245,960,203,1080,181.3C1200,160,1320,160,1380,160L1440,160L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+      </svg>
+    </div>
+
+    <div class="bg-layer bg-sunset-sun-container">
+      <div class="bg-sunset-sun"></div>
+    </div>
+
+    <div class="bg-layer bg-forest-trees-container">
+      <svg class="bg-forest-trees" viewBox="0 0 1440 320" preserveAspectRatio="none">
+        <path fill="rgba(16, 185, 129, 0.25)" d="M0,256L40,224L80,256L120,208L160,256L200,192L240,256L280,224L320,256L360,176L400,256L440,224L480,256L520,208L560,256L600,192L640,256L680,224L720,256L760,176L800,256L840,224L880,256L920,208L960,256L1000,192L1040,256L1080,224L1120,256L1160,176L1200,256L1240,224L1280,256L1320,208L1360,256L1400,192L1440,256L1440,320L0,320Z"></path>
+        <path fill="rgba(4, 120, 87, 0.45)" d="M0,288L30,256L60,288L90,240L120,288L150,224L180,288L210,256L240,288L270,208L300,288L330,256L360,288L390,240L420,288L450,224L480,288L510,256L540,288L570,208L600,288L630,256L660,288L690,240L720,288L750,224L780,288L810,256L840,288L870,208L900,288L930,256L960,288L990,240L1020,288L1050,224L1080,288L1110,256L1140,288L1170,208L1200,288L1230,256L1260,288L1290,240L1320,288L1350,224L1380,288L1410,256L1440,288L1440,320L0,320Z"></path>
+      </svg>
+    </div>
+
+    <div class="bg-layer bg-cyber-grid-container">
+      <div class="bg-cyber-grid"></div>
+    </div>
+
+    <div id="bg-custom-layer" class="bg-custom-layer"></div>
+    <!-- Layered Mountain & Pine Silhouette SVG -->
+    <svg class="bg-mountains" viewBox="0 0 1440 320" preserveAspectRatio="none" fill="currentColor">
+      <path fill="rgba(8, 5, 22, 0.75)" d="M0,224L60,208C120,192,240,160,360,170.7C480,181,600,235,720,240C840,245,960,203,1080,181.3C1200,160,1320,160,1380,160L1440,160L1440,320L1380,320C1320,320,1200,320,1080,320C960,320,840,320,720,320C600,320,480,320,360,320C240,320,120,320,60,320L0,320Z"></path>
+      <path fill="rgba(5, 3, 14, 0.95)" d="M0,288L48,272C96,256,192,224,288,229.3C384,235,480,277,576,282.7C672,288,768,256,864,245.3C960,235,1056,245,1152,256C1248,267,1344,277,1392,282.7L1440,288L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path>
+    </svg>
+  </div>
+
+  <!-- Mobile Drawer Backdrop -->
+  <div id="panel-backdrop" class="panel-backdrop"></div>
+
+  <!-- Master App Grid -->
+  <div id="app">
+
+    <!-- ======================================================================
+         1. LEFT SIDEBAR
+         ====================================================================== -->
+    <aside class="sidebar">
+      <div>
+        <!-- Logo Branding -->
+        <div class="sidebar-brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v4"></path>
+            </svg>
+          </div>
+          <div class="brand-info">
+            <span class="brand-title">MUSIC OS</span>
+            <span class="brand-subtitle">Your Personal Lounge</span>
+          </div>
+        </div>
+
+        <!-- Main Navigation Links -->
+        <div class="sidebar-nav-group">
+          <ul class="sidebar-menu">
+            <li class="sidebar-item">
+              <a class="sidebar-link active" href="#" data-nav="Home">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                <span>Home</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Library">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 6 4 14M12 6v14M8 8v12M4 4v16"></path></svg>
+                <span>Library</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Playlists">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+                <span>Playlists</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Artists">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Artists</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Albums">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle></svg>
+                <span>Albums</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <span>Search</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Analytics">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                <span>Analytics</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Theme Studio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5"></circle><circle cx="17.5" cy="10.5" r=".5"></circle><circle cx="8.5" cy="7.5" r=".5"></circle><circle cx="6.5" cy="12.5" r=".5"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>
+                <span>Theme Studio</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Import Music">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <span>Import Music</span>
+              </a>
+            </li>
+            <li class="sidebar-item">
+              <a class="sidebar-link" href="#" data-nav="Settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                <span>Settings</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Playlists List Section -->
+        <div class="sidebar-nav-group">
+          <div class="sidebar-nav-title">
+            <span>Your Playlists</span>
+            <button id="sidebar-add-playlist-header-btn" class="add-btn" title="Add Playlist">+</button>
+          </div>
+          <ul id="sidebar-playlists-list" class="sidebar-playlists">
+            <!-- Rendered dynamically -->
+          </ul>
+          <button id="sidebar-create-playlist-btn" class="create-playlist-btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>+ Create Playlist</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bottom User Profile Card -->
+      <div class="sidebar-user">
+        <div class="user-card">
+          <div class="user-details">
+            <div class="user-avatar">SH</div>
+            <div class="user-meta">
+              <span class="user-name">Sri Harsha</span>
+              <span class="user-plan">Free Plan</span>
+            </div>
+          </div>
+          <svg class="user-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ======================================================================
+         2. MAIN SCROLLABLE DASHBOARD
+         ====================================================================== -->
+    <main class="main-content">
+
+      <!-- TOP BAR -->
+      <header class="topbar">
+        <button id="mobile-menu-toggle" class="mobile-menu-btn" title="Open Menu">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+
+        <!-- Search Bar -->
+        <div class="search-container">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input id="main-search-input" class="search-input" type="text" placeholder="Search songs, artists, albums, playlists, YouTube...">
+          <button id="search-clear-btn" class="search-clear-btn" title="Clear Search">✕</button>
+        </div>
+
+        <!-- Music Source Filter Pills -->
+        <div class="source-pills">
+          <button class="source-pill active" data-source="all">All</button>
+          <button class="source-pill" data-source="youtube">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+            YouTube
+          </button>
+          <button class="source-pill" data-source="local">Local</button>
+          <button class="source-pill" data-source="spotify">Spotify</button>
+          <button class="source-pill" data-source="amazon">Amazon</button>
+        </div>
+
+        <!-- Action Items (Theme Quick Toggle, Notifications, Avatar) -->
+        <div class="topbar-actions">
+          <button id="topbar-theme-pill" class="theme-selector-pill" title="Cycle Aurora Themes">
+            <span class="theme-pill-dot"></span>
+            <span id="current-theme-label" class="theme-pill-label">Aurora</span>
+            <svg class="theme-pill-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+
+          <button class="icon-action-btn" title="Notifications">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span class="badge-dot"></span>
+          </button>
+
+          <div class="topbar-avatar" title="User Profile">SH</div>
+        </div>
+      </header>
+
+      <!-- 3. HERO GREETING & FILTER CHIPS -->
+      <section class="hero-section">
+        <div class="greeting-container">
+          <h1 class="greeting-title">
+            <span id="hero-greeting-text">Good Evening, Sri Harsha</span>
+            <span class="greeting-wave">👋</span>
+          </h1>
+          <p class="greeting-subtitle">Your personal ambient music station is tuned and ready.</p>
+        </div>
+
+        <!-- Filter Chips -->
+        <div class="hero-filter-chips">
+          <button class="filter-chip active">Recently Played</button>
+          <button class="filter-chip">Top Picks</button>
+          <button class="filter-chip">For You</button>
+          <button class="filter-chip">Chill</button>
+          <button class="filter-chip">Focus</button>
+          <button class="filter-chip">Workout</button>
+        </div>
+
+        <!-- 4. CONTINUE LISTENING CARD + QUOTE -->
+        <div class="continue-listening-wrapper">
+          <div class="continue-card">
+            <div id="continue-cover-art" class="continue-art-wrapper">
+              <!-- Rendered dynamically -->
+            </div>
+            <div class="continue-details">
+              <span class="continue-badge">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                  <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Continue Listening
+              </span>
+              <h2 id="continue-title" class="continue-title">Starlight Symphony</h2>
+              <p id="continue-artist" class="continue-artist">Astral Echoes</p>
+              
+              <div class="continue-progress-row">
+                <span id="continue-current-time" class="continue-time">0:38</span>
+                <div class="continue-progress-bar-bg">
+                  <div id="continue-progress-fill" class="continue-progress-fill"></div>
+                </div>
+                <span id="continue-duration-time" class="continue-time">3:18</span>
+              </div>
+            </div>
+            <button id="continue-play-btn" class="continue-play-btn" title="Play Track">
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6 4 18 12 6 20 6 4"/>
+              </svg>
+            </button>
+          </div>
+
+          <!-- Quote Card -->
+          <div class="quote-card glass-card">
+            <div class="quote-icon">“</div>
+            <p class="quote-text">Music is not what I do. It's who I am.</p>
+            <span class="quote-author">— Daily Inspiration</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. STATS ROW (Dynamic calculations, not hardcoded) -->
+      <section class="stats-grid">
+        <div class="stat-card glass-card">
+          <div class="stat-icon-wrapper">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <div class="stat-value-row">
+              <span id="stat-listening-mins" class="stat-number">482 mins</span>
+              <span class="stat-trend">↑18%</span>
+            </div>
+            <span class="stat-label">Total Listening Time</span>
+          </div>
+        </div>
+
+        <div class="stat-card glass-card">
+          <div class="stat-icon-wrapper">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span id="stat-songs-count" class="stat-number">128</span>
+            <span class="stat-label">Songs in Library</span>
+          </div>
+        </div>
+
+        <div class="stat-card glass-card">
+          <div class="stat-icon-wrapper">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m16 6 4 14M12 6v14M8 8v12M4 4v16"></path>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span id="stat-playlists-count" class="stat-number">12</span>
+            <span class="stat-label">Playlists</span>
+          </div>
+        </div>
+
+        <div class="stat-card glass-card">
+          <div class="stat-icon-wrapper">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+            </svg>
+          </div>
+          <div class="stat-content">
+            <span id="stat-favs-count" class="stat-number">64</span>
+            <span class="stat-label">Favorite Songs</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6. YOUR PLAYLISTS SECTION -->
+      <section class="playlists-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="8" y1="6" x2="21" y2="6"></line>
+              <line x1="8" y1="12" x2="21" y2="12"></line>
+              <line x1="8" y1="18" x2="21" y2="18"></line>
+            </svg>
+            <span>Your Playlists</span>
+          </h2>
+          <a href="#" class="section-link">View All</a>
+        </div>
+        <div id="playlists-grid" class="playlists-grid">
+          <!-- Rendered dynamically -->
+        </div>
+      </section>
+
+      <!-- 7. RECENTLY PLAYED SECTION -->
+      <section class="recently-played-section">
+        <div class="section-header">
+          <h2 class="section-title">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>Recently Played</span>
+          </h2>
+          <a href="#" class="section-link">View All</a>
+        </div>
+        <div id="recently-played-grid" class="tracks-grid">
+          <!-- Rendered dynamically -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ======================================================================
+         3. RIGHT PANEL (Theme Studio Only)
+         ====================================================================== -->
+    <aside class="right-panel">
+
+      <!-- Themes Card (2x4 Grid + Custom Background) -->
+      <div class="themes-panel-card glass-card">
+        <div class="theme-card-header">
+          <div class="theme-card-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="m4.93 4.93 4.24 4.24"></path>
+              <path d="m14.83 9.17 4.24-4.24"></path>
+              <path d="m14.83 14.83 4.24 4.24"></path>
+              <path d="m9.17 14.83-4.24 4.24"></path>
+            </svg>
+            <span>Theme Studio</span>
+          </div>
+          <div class="right-panel-header-actions">
+            <span id="theme-active-tag" class="theme-active-tag">Aurora</span>
+            <button id="right-panel-desktop-close" class="right-panel-close-btn" title="Close Panel">✕</button>
+          </div>
+        </div>
+        <div id="themes-grid" class="themes-grid">
+          <!-- Rendered dynamically -->
+        </div>
+
+        <!-- Background Opacity & Blur Sliders -->
+        <div class="theme-sliders-container" style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-glass); display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--text-muted);">
+              <span>Background Opacity</span>
+              <span id="theme-opacity-val">100%</span>
+            </div>
+            <input id="theme-opacity-slider" type="range" min="0.1" max="1" step="0.05" value="1" style="accent-color: var(--accent-primary); width: 100%; cursor: pointer;">
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: 600; color: var(--text-muted);">
+              <span>Background Blur</span>
+              <span id="theme-blur-val">0px</span>
+            </div>
+            <input id="theme-blur-slider" type="range" min="0" max="40" step="1" value="0" style="accent-color: var(--accent-primary); width: 100%; cursor: pointer;">
+          </div>
+        </div>
+      </div>
+
+      <!-- 5-Band Audio Equalizer & Realtime Visualizer Card -->
+      <div class="equalizer-panel-card glass-card">
+        <div class="eq-header-row">
+          <div class="eq-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+            <span>Audio Equalizer</span>
+          </div>
+          <div class="eq-visualizer-bars">
+            <div class="eq-vis-bar"></div>
+            <div class="eq-vis-bar"></div>
+            <div class="eq-vis-bar"></div>
+            <div class="eq-vis-bar"></div>
+            <div class="eq-vis-bar"></div>
+          </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="eq-preset-pills">
+          <button class="eq-pill-btn active" data-eq="flat">Flat</button>
+          <button class="eq-pill-btn" data-eq="bass">Bass</button>
+          <button class="eq-pill-btn" data-eq="vocal">Vocal</button>
+          <button class="eq-pill-btn" data-eq="lofi">Lofi</button>
+          <button class="eq-pill-btn" data-eq="edm">EDM</button>
+          <button class="eq-pill-btn" data-eq="treble">Treble</button>
+        </div>
+
+        <!-- 5 Vertical Faders -->
+        <div class="eq-faders-container">
+          <div class="eq-fader-column">
+            <input class="eq-fader-slider" type="range" min="-12" max="12" step="1" value="0" data-band="0">
+            <span class="eq-fader-label">60Hz</span>
+            <span class="eq-fader-db" id="eq-db-0">0dB</span>
+          </div>
+          <div class="eq-fader-column">
+            <input class="eq-fader-slider" type="range" min="-12" max="12" step="1" value="0" data-band="1">
+            <span class="eq-fader-label">230Hz</span>
+            <span class="eq-fader-db" id="eq-db-1">0dB</span>
+          </div>
+          <div class="eq-fader-column">
+            <input class="eq-fader-slider" type="range" min="-12" max="12" step="1" value="0" data-band="2">
+            <span class="eq-fader-label">910Hz</span>
+            <span class="eq-fader-db" id="eq-db-2">0dB</span>
+          </div>
+          <div class="eq-fader-column">
+            <input class="eq-fader-slider" type="range" min="-12" max="12" step="1" value="0" data-band="3">
+            <span class="eq-fader-label">3.6k</span>
+            <span class="eq-fader-db" id="eq-db-3">0dB</span>
+          </div>
+          <div class="eq-fader-column">
+            <input class="eq-fader-slider" type="range" min="-12" max="12" step="1" value="0" data-band="4">
+            <span class="eq-fader-label">14k</span>
+            <span class="eq-fader-db" id="eq-db-4">0dB</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ======================================================================
+         4. BOTTOM FIXED PLAYER BAR
+         ====================================================================== -->
+    <footer class="player-bar">
+
+      <!-- Left Track Info -->
+      <div class="player-left">
+        <div id="player-thumb" class="player-thumb-wrapper">
+          <!-- Rendered dynamically -->
+        </div>
+        <div class="player-meta">
+          <span id="player-title" class="player-song-title">Starlight Symphony</span>
+          <span id="player-artist" class="player-song-artist">Astral Echoes</span>
+        </div>
+        <div class="player-actions-left">
+          <button id="player-heart-btn" class="btn-icon-sm" title="Favorite">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Center Audio Controls & Seek Bar -->
+      <div class="player-center">
+        <div class="player-buttons">
+          <button id="shuffle-btn" class="ctrl-btn" title="Shuffle (S)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 3 21 3 21 8"></polyline>
+              <line x1="4" y1="20" x2="21" y2="3"></line>
+              <polyline points="21 16 21 21 16 21"></polyline>
+              <line x1="15" y1="15" x2="21" y2="21"></line>
+              <line x1="4" y1="4" x2="9" y2="9"></line>
+            </svg>
+          </button>
+
+          <button id="prev-btn" class="ctrl-btn" title="Previous Track (Left Arrow)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <polygon points="19 20 9 12 19 4 19 20"></polygon>
+              <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2.5"></line>
+            </svg>
+          </button>
+
+          <button id="play-pause-btn" class="play-pause-btn" title="Play / Pause (Space)">
+            <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="6 4 18 12 6 20 6 4"/>
+            </svg>
+          </button>
+
+          <button id="next-btn" class="ctrl-btn" title="Next Track (Right Arrow)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+              <polygon points="5 4 15 12 5 20 5 4"></polygon>
+              <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.5"></line>
+            </svg>
+          </button>
+
+          <button id="repeat-btn" class="ctrl-btn active" title="Repeat All">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="17 1 21 5 17 9"></polyline>
+              <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+              <polyline points="7 23 3 19 7 15"></polyline>
+              <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Drag-to-Seek Progress Bar -->
+        <div class="progress-container">
+          <span id="current-time-label" class="time-label">0:00</span>
+          <div id="seek-bar-track" class="seek-bar-track" title="Drag to Seek">
+            <div id="seek-bar-fill" class="seek-bar-fill">
+              <div class="seek-thumb"></div>
+            </div>
+          </div>
+          <span id="total-time-label" class="time-label">3:18</span>
+        </div>
+      </div>
+
+      <!-- Right Tools & Volume -->
+      <div class="player-right">
+        <button id="player-queue-toggle" class="ctrl-btn" title="Toggle Queue">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="8" y1="6" x2="21" y2="6"></line>
+            <line x1="8" y1="12" x2="21" y2="12"></line>
+            <line x1="8" y1="18" x2="21" y2="18"></line>
+            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+          </svg>
+        </button>
+
+        <button id="player-lyrics-toggle" class="ctrl-btn" title="Toggle Lyrics">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+
+        <!-- Volume Control -->
+        <div class="volume-container">
+          <button id="volume-icon-btn" class="ctrl-btn" title="Mute (M)" onclick="player.setVolume(player.volume > 0 ? 0 : 0.75)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+          </button>
+          <div id="volume-bar-track" class="volume-bar-track" title="Adjust Volume">
+            <div id="volume-fill" class="volume-bar-fill"></div>
+          </div>
+        </div>
+
+        <button id="fullscreen-btn" class="ctrl-btn" title="Toggle Fullscreen">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        </button>
+      </div>
+
+    </footer>
+
+  </div>
+
+  <!-- Floating Draggable & Adjustable Queue Window -->
+  <div id="floating-queue-window" class="floating-queue-window">
+    <div id="floating-queue-header" class="floating-header">
+      <div class="floating-header-title">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="8" y1="6" x2="21" y2="6"></line>
+          <line x1="8" y1="12" x2="21" y2="12"></line>
+          <line x1="8" y1="18" x2="21" y2="18"></line>
+          <line x1="3" y1="6" x2="3.01" y2="6"></line>
+          <line x1="3" y1="12" x2="3.01" y2="12"></line>
+          <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+        <span>Play Queue</span>
+        <span id="floating-queue-badge" class="tab-badge">0</span>
+      </div>
+      <div class="floating-header-actions">
+        <button id="floating-queue-clear-btn" class="clear-queue-btn" title="Clear Queue">Clear All</button>
+        <button id="floating-queue-min-btn" class="floating-action-btn" title="Minimize">−</button>
+        <button id="floating-queue-close-btn" class="floating-action-btn" title="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="floating-body">
+      <div id="floating-queue-scroll" class="floating-queue-scroll queue-list">
+        <!-- Queue items rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Draggable & Adjustable Lyrics + Mini Player Window -->
+  <div id="floating-lyrics-window" class="floating-lyrics-window">
+    <div id="floating-header" class="floating-header">
+      <div class="floating-header-title">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+        <span id="floating-header-song-name">Lyrics & Floating Lounge</span>
+      </div>
+      <div class="floating-header-actions">
+        <button id="floating-minimize-btn" class="floating-action-btn" title="Minimize">−</button>
+        <button id="floating-close-btn" class="floating-action-btn" title="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="floating-body">
+      <!-- Mini Player Controls Inside Floating Window -->
+      <div class="floating-mini-player">
+        <div class="floating-track-row">
+          <div id="floating-thumb" class="floating-thumb"></div>
+          <div class="floating-track-meta">
+            <span id="floating-title" class="floating-song-title">Starlight Symphony</span>
+            <span id="floating-artist" class="floating-song-artist">Astral Echoes</span>
+          </div>
+          <div class="floating-mini-btns">
+            <button id="floating-prev-btn" class="btn-icon-sm" title="Previous">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <polygon points="19 20 9 12 19 4 19 20"></polygon>
+                <line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2.5"></line>
+              </svg>
+            </button>
+            <button id="floating-play-btn" class="btn-icon-sm" title="Play/Pause">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                <polygon points="6 4 18 12 6 20 6 4"/>
+              </svg>
+            </button>
+            <button id="floating-next-btn" class="btn-icon-sm" title="Next">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                <line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2.5"></line>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="progress-container" style="gap: 8px;">
+          <span id="floating-cur-time" class="time-label" style="font-size: 11px;">0:00</span>
+          <div id="floating-seek-track" class="seek-bar-track" style="height: 4px;">
+            <div id="floating-seek-fill" class="seek-bar-fill"></div>
+          </div>
+          <span id="floating-dur-time" class="time-label" style="font-size: 11px;">3:18</span>
+        </div>
+      </div>
+
+      <!-- Realtime Synced Lyrics Container -->
+      <div id="floating-lyrics-scroll" class="floating-lyrics-scroll">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Main ES Module JS -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

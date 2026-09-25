@@ -1,0 +1,304 @@
+/* ==========================================================================
+   MUSIC OS - CSS Variables & Design Tokens
+   Themes: Aurora, Ocean, Sunset, Cyberpunk, Forest, Space, AMOLED, Minimal
+   ========================================================================== */
+
+:root {
+  /* Fonts */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Base Typography Scale */
+  --text-xs: 0.75rem;    /* 12px */
+  --text-sm: 0.8125rem;  /* 13px */
+  --text-base: 0.875rem; /* 14px */
+  --text-md: 1rem;       /* 16px */
+  --text-lg: 1.125rem;   /* 18px */
+  --text-xl: 1.35rem;    /* 21.6px */
+  --text-2xl: 1.75rem;   /* 28px */
+  --text-3xl: 2.25rem;   /* 36px */
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Glass Dimensions & Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shared Accents */
+  --color-green: #22c55e;
+  --color-green-glow: rgba(34, 197, 94, 0.35);
+  --color-blue: #3b82f6;
+  --color-pink: #ec4899;
+  --color-yellow: #eab308;
+  --color-red: #ef4444;
+
+  /* Layout Dimensions */
+  --sidebar-width: 240px;
+  --right-panel-width: 330px;
+  --player-bar-height: 86px;
+  --topbar-height: 68px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-smooth: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-theme: 0.6s ease;
+}
+
+/* ==========================================================================
+   THEME 1: AURORA (Default) - Mystic Purple & Emerald Lights
+   ========================================================================== */
+[data-theme="aurora"], :root {
+  --theme-name: "Aurora";
+  --bg-primary: #090616;
+  --bg-secondary: #110b29;
+  --bg-glass: rgba(20, 15, 50, 0.55);
+  --bg-glass-hover: rgba(30, 22, 70, 0.7);
+  --bg-glass-active: rgba(45, 30, 100, 0.8);
+  --bg-glass-card: rgba(18, 12, 44, 0.6);
+  --bg-input: rgba(14, 9, 34, 0.65);
+  
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --border-glass-hover: rgba(168, 85, 247, 0.35);
+  --border-glass-active: rgba(168, 85, 247, 0.6);
+
+  --accent-primary: #a855f7;
+  --accent-secondary: #8b5cf6;
+  --accent-gradient: linear-gradient(135deg, #a855f7 0%, #6366f1 50%, #06b6d4 100%);
+  --accent-glow: 0 0 24px rgba(168, 85, 247, 0.4);
+  --accent-glow-subtle: 0 8px 32px rgba(139, 92, 246, 0.2);
+
+  --text-main: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.62);
+  --text-faint: rgba(255, 255, 255, 0.38);
+
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  --shadow-elevated: 0 12px 40px -8px rgba(10, 5, 30, 0.8);
+}
+
+/* ==========================================================================
+   THEME 2: OCEAN - Deep Abyssal Aqua & Bioluminescence
+   ========================================================================== */
+[data-theme="ocean"] {
+  --theme-name: "Ocean";
+  --bg-primary: #030e1c;
+  --bg-secondary: #061930;
+  --bg-glass: rgba(6, 28, 54, 0.55);
+  --bg-glass-hover: rgba(10, 42, 78, 0.7);
+  --bg-glass-active: rgba(14, 58, 105, 0.8);
+  --bg-glass-card: rgba(5, 25, 48, 0.6);
+  --bg-input: rgba(3, 16, 32, 0.7);
+
+  --border-glass: rgba(56, 189, 248, 0.12);
+  --border-glass-hover: rgba(56, 189, 248, 0.4);
+  --border-glass-active: rgba(14, 165, 233, 0.6);
+
+  --accent-primary: #06b6d4;
+  --accent-secondary: #3b82f6;
+  --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #0ea5e9 100%);
+  --accent-glow: 0 0 24px rgba(6, 182, 212, 0.45);
+  --accent-glow-subtle: 0 8px 32px rgba(14, 165, 233, 0.25);
+
+  --text-main: #f0fdfa;
+  --text-muted: rgba(224, 242, 254, 0.65);
+  --text-faint: rgba(186, 230, 253, 0.4);
+
+  --shadow-glass: 0 8px 32px 0 rgba(1, 10, 22, 0.5);
+  --shadow-elevated: 0 12px 40px -8px rgba(2, 14, 30, 0.85);
+}
+
+/* ==========================================================================
+   THEME 3: SUNSET - Warm Coral, Radiant Orange & Dusky Violet
+   ========================================================================== */
+[data-theme="sunset"] {
+  --theme-name: "Sunset";
+  --bg-primary: #1a0818;
+  --bg-secondary: #2b0d24;
+  --bg-glass: rgba(48, 16, 40, 0.55);
+  --bg-glass-hover: rgba(68, 24, 56, 0.7);
+  --bg-glass-active: rgba(92, 32, 75, 0.8);
+  --bg-glass-card: rgba(40, 14, 34, 0.6);
+  --bg-input: rgba(28, 8, 24, 0.7);
+
+  --border-glass: rgba(251, 146, 60, 0.15);
+  --border-glass-hover: rgba(244, 63, 94, 0.4);
+  --border-glass-active: rgba(251, 113, 133, 0.6);
+
+  --accent-primary: #f97316;
+  --accent-secondary: #ec4899;
+  --accent-gradient: linear-gradient(135deg, #f97316 0%, #f43f5e 50%, #ec4899 100%);
+  --accent-glow: 0 0 24px rgba(249, 115, 22, 0.45);
+  --accent-glow-subtle: 0 8px 32px rgba(244, 63, 94, 0.25);
+
+  --text-main: #fff1f2;
+  --text-muted: rgba(254, 226, 226, 0.65);
+  --text-faint: rgba(254, 205, 211, 0.4);
+
+  --shadow-glass: 0 8px 32px 0 rgba(20, 3, 18, 0.5);
+  --shadow-elevated: 0 12px 40px -8px rgba(26, 5, 22, 0.85);
+}
+
+/* ==========================================================================
+   THEME 4: CYBERPUNK - High Voltage Neon Pink & Cyan
+   ========================================================================== */
+[data-theme="cyberpunk"] {
+  --theme-name: "Cyberpunk";
+  --bg-primary: #070714;
+  --bg-secondary: #0d0c24;
+  --bg-glass: rgba(20, 16, 48, 0.65);
+  --bg-glass-hover: rgba(32, 26, 75, 0.8);
+  --bg-glass-active: rgba(48, 38, 110, 0.9);
+  --bg-glass-card: rgba(18, 14, 42, 0.7);
+  --bg-input: rgba(11, 9, 28, 0.75);
+
+  --border-glass: rgba(6, 182, 212, 0.2);
+  --border-glass-hover: rgba(236, 72, 153, 0.5);
+  --border-glass-active: rgba(6, 182, 212, 0.8);
+
+  --accent-primary: #06b6d4;
+  --accent-secondary: #f43f5e;
+  --accent-gradient: linear-gradient(135deg, #06b6d4 0%, #ec4899 50%, #a855f7 100%);
+  --accent-glow: 0 0 28px rgba(6, 182, 212, 0.55);
+  --accent-glow-subtle: 0 8px 32px rgba(236, 72, 153, 0.3);
+
+  --text-main: #ffffff;
+  --text-muted: rgba(226, 232, 240, 0.7);
+  --text-faint: rgba(203, 213, 225, 0.45);
+
+  --shadow-glass: 0 8px 32px 0 rgba(2, 2, 10, 0.6);
+  --shadow-elevated: 0 12px 40px -8px rgba(4, 2, 18, 0.9);
+}
+
+/* ==========================================================================
+   THEME 5: FOREST - Emerald Mist & Deep Pine Canopy
+   ========================================================================== */
+[data-theme="forest"] {
+  --theme-name: "Forest";
+  --bg-primary: #04140e;
+  --bg-secondary: #08241b;
+  --bg-glass: rgba(10, 42, 32, 0.55);
+  --bg-glass-hover: rgba(16, 62, 48, 0.7);
+  --bg-glass-active: rgba(22, 84, 64, 0.8);
+  --bg-glass-card: rgba(8, 36, 28, 0.6);
+  --bg-input: rgba(5, 22, 16, 0.7);
+
+  --border-glass: rgba(34, 197, 94, 0.14);
+  --border-glass-hover: rgba(52, 211, 153, 0.4);
+  --border-glass-active: rgba(16, 185, 129, 0.6);
+
+  --accent-primary: #10b981;
+  --accent-secondary: #059669;
+  --accent-gradient: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+  --accent-glow: 0 0 24px rgba(16, 185, 129, 0.45);
+  --accent-glow-subtle: 0 8px 32px rgba(16, 185, 129, 0.25);
+
+  --text-main: #ecfdf5;
+  --text-muted: rgba(209, 250, 229, 0.65);
+  --text-faint: rgba(167, 243, 208, 0.4);
+
+  --shadow-glass: 0 8px 32px 0 rgba(2, 12, 8, 0.5);
+  --shadow-elevated: 0 12px 40px -8px rgba(2, 16, 10, 0.85);
+}
+
+/* ==========================================================================
+   THEME 6: SPACE - Deep Cosmic Void & Starlight Nebula
+   ========================================================================== */
+[data-theme="space"] {
+  --theme-name: "Space";
+  --bg-primary: #03040c;
+  --bg-secondary: #080a1c;
+  --bg-glass: rgba(12, 16, 38, 0.6);
+  --bg-glass-hover: rgba(20, 26, 60, 0.75);
+  --bg-glass-active: rgba(30, 38, 85, 0.85);
+  --bg-glass-card: rgba(10, 14, 32, 0.65);
+  --bg-input: rgba(6, 8, 20, 0.75);
+
+  --border-glass: rgba(99, 102, 241, 0.15);
+  --border-glass-hover: rgba(129, 140, 248, 0.4);
+  --border-glass-active: rgba(99, 102, 241, 0.6);
+
+  --accent-primary: #6366f1;
+  --accent-secondary: #818cf8;
+  --accent-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+  --accent-glow: 0 0 26px rgba(99, 102, 241, 0.45);
+  --accent-glow-subtle: 0 8px 32px rgba(99, 102, 241, 0.25);
+
+  --text-main: #eef2ff;
+  --text-muted: rgba(224, 231, 255, 0.65);
+  --text-faint: rgba(199, 210, 254, 0.4);
+
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+  --shadow-elevated: 0 12px 40px -8px rgba(0, 0, 0, 0.9);
+}
+
+/* ==========================================================================
+   THEME 7: AMOLED - True Deep Black & Razor Crisp Accents
+   ========================================================================== */
+[data-theme="amoled"] {
+  --theme-name: "AMOLED";
+  --bg-primary: #000000;
+  --bg-secondary: #050505;
+  --bg-glass: rgba(12, 12, 12, 0.75);
+  --bg-glass-hover: rgba(24, 24, 24, 0.85);
+  --bg-glass-active: rgba(36, 36, 36, 0.95);
+  --bg-glass-card: rgba(10, 10, 10, 0.8);
+  --bg-input: rgba(8, 8, 8, 0.85);
+
+  --border-glass: rgba(255, 255, 255, 0.12);
+  --border-glass-hover: rgba(255, 255, 255, 0.3);
+  --border-glass-active: rgba(255, 255, 255, 0.5);
+
+  --accent-primary: #ffffff;
+  --accent-secondary: #a1a1aa;
+  --accent-gradient: linear-gradient(135deg, #ffffff 0%, #a1a1aa 50%, #71717a 100%);
+  --accent-glow: 0 0 20px rgba(255, 255, 255, 0.35);
+  --accent-glow-subtle: 0 8px 32px rgba(255, 255, 255, 0.15);
+
+  --text-main: #ffffff;
+  --text-muted: rgba(255, 255, 255, 0.65);
+  --text-faint: rgba(255, 255, 255, 0.4);
+
+  --shadow-glass: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  --shadow-elevated: 0 12px 40px -8px rgba(0, 0, 0, 0.95);
+}
+
+/* ==========================================================================
+   THEME 8: MINIMAL - Sleek Titanium Monochrome Glass
+   ========================================================================== */
+[data-theme="minimal"] {
+  --theme-name: "Minimal";
+  --bg-primary: #0f1117;
+  --bg-secondary: #171b26;
+  --bg-glass: rgba(26, 31, 44, 0.6);
+  --bg-glass-hover: rgba(37, 44, 62, 0.75);
+  --bg-glass-active: rgba(48, 58, 82, 0.85);
+  --bg-glass-card: rgba(22, 27, 39, 0.65);
+  --bg-input: rgba(18, 22, 32, 0.75);
+
+  --border-glass: rgba(148, 163, 184, 0.15);
+  --border-glass-hover: rgba(203, 213, 225, 0.4);
+  --border-glass-active: rgba(148, 163, 184, 0.6);
+
+  --accent-primary: #94a3b8;
+  --accent-secondary: #64748b;
+  --accent-gradient: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 50%, #64748b 100%);
+  --accent-glow: 0 0 20px rgba(148, 163, 184, 0.35);
+  --accent-glow-subtle: 0 8px 32px rgba(148, 163, 184, 0.18);
+
+  --text-main: #f8fafc;
+  --text-muted: rgba(203, 213, 225, 0.65);
+  --text-faint: rgba(148, 163, 184, 0.4);
+
+  --shadow-glass: 0 8px 32px 0 rgba(5, 7, 12, 0.5);
+  --shadow-elevated: 0 12px 40px -8px rgba(5, 7, 12, 0.8);
+}
