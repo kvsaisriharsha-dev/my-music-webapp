@@ -101,6 +101,15 @@ class MusicOSSidebar {
     const addHeaderBtn = document.getElementById('sidebar-add-playlist-header-btn');
 
     const handleCreate = () => {
+      if (window.musicOSUI && typeof window.musicOSUI.showCreatePlaylistModal === 'function') {
+        window.musicOSUI.showCreatePlaylistModal((created) => {
+          if (this.onPlaylistCreatedCallback) {
+            this.onPlaylistCreatedCallback(created);
+          }
+        });
+        return;
+      }
+
       const name = prompt("Enter a name for your new playlist:", "My Cosmic Lounge");
       if (name && name.trim()) {
         const created = dataStore.createPlaylist(name.trim());

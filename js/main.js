@@ -17,7 +17,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 0. Load Environment Configurations (.env / .env.local / localStorage)
   await envConfig.init();
 
-  // 1. Initialize UI & Core Components
+  // 1. Initialize Theme Engine & Sliders
+  themeManager.init();
+
+  // 2. Initialize UI & Core Components
   ui.init();
 
   // 2. Initialize Sidebar & Routing
@@ -32,16 +35,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   );
 
   // 3. Initialize Live Search & YouTube Integration
-  searchEngine.init(({ isQuery, songs, playlists }) => {
-    if (isQuery) {
-      ui.renderRecentlyPlayed(songs);
-      if (playlists && playlists.length > 0) {
-        ui.renderPlaylists(playlists);
-      }
-    } else {
-      ui.renderRecentlyPlayed(songs.slice(0, 4));
-      ui.renderPlaylists(playlists);
-    }
+  searchEngine.init((results) => {
+    ui.handleSearchResults(results);
   });
 
   // 4. Global Keyboard Shortcuts

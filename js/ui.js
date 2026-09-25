@@ -7,6 +7,7 @@ import { dataStore, THEMES } from './data.js';
 import { player } from './player.js';
 import { themeManager } from './themes.js';
 import { envConfig } from './config.js';
+import { searchEngine } from './search.js';
 
 class MusicOSUI {
   constructor() {
@@ -14,9 +15,13 @@ class MusicOSUI {
     this.activeFilter = 'Recently Played';
     this.currentView = 'Home';
     this.currentDetailId = null;
+    this.activeLyricIndex = -1;
+    this.activeFloatingLyricIndex = -1;
+    window.musicOSUI = this;
   }
 
   init() {
+    window.musicOSUI = this;
     this.updateGreetingIST();
     this.renderStats();
     this.renderPlaylists();
@@ -44,6 +49,7 @@ class MusicOSUI {
     player.on('shufflechange', (isShuffle) => this.handleShuffleChange(isShuffle));
     player.on('repeatchange', (mode) => this.handleRepeatChange(mode));
     player.on('listeningtimeupdate', () => this.renderStats());
+    player.on('error', () => this.showToast("Notice: Track streaming issue. You can try another track."));
 
     // Listen to playlist data changes to synchronize sidebar and views automatically
     window.addEventListener('playlistschange', () => {
@@ -226,15 +232,160 @@ class MusicOSUI {
     }
   }
 
+  showCreatePlaylistModal(onCreated) {
+    document.querySelectorAll('.create-playlist-modal-overlay').forEach(m => m.remove());
+    const modal = document.createElement('div');
+    modal.className = 'create-playlist-modal-overlay';
+    modal.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    `;
+
+    modal.innerHTML = `
+      <div class="glass-card" style="width: 100%; max-width: 420px; padding: 24px; display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--accent-primary); box-shadow: var(--accent-glow); border-radius: var(--radius-xl);">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <h3 style="font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+            <span>✨ Create New Playlist</span>
+          </h3>
+          <button id="close-create-pl-modal" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; cursor: pointer; border: none; font-size: 14px;">✕</button>
+        </div>
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: -4px;">
+          Give your playlist a name to start collecting your favorite tracks.
+        </p>
+        <input id="create-pl-name-input" class="search-input" type="text" placeholder="e.g. Chill Beats, Midnight Vibes..." style="padding: 10px 14px; width: 100%; font-size: 13px;" autofocus>
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 6px;">
+          <button id="cancel-create-pl" class="source-pill" style="cursor: pointer;">Cancel</button>
+          <button id="submit-create-pl" style="background: var(--accent-gradient); color: #fff; padding: 8px 22px; border-radius: 9999px; font-weight: 700; font-size: 13px; box-shadow: var(--accent-glow); cursor: pointer; border: none;">Create Playlist</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    const input = modal.querySelector('#create-pl-name-input');
+    input.focus();
+
+    const closeModal = () => modal.remove();
+    modal.querySelector('#close-create-pl-modal').addEventListener('click', closeModal);
+    modal.querySelector('#cancel-create-pl').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    const handleCreate = () => {
+      const name = input.value.trim();
+      if (name) {
+        const created = dataStore.createPlaylist(name);
+        closeModal();
+        if (typeof onCreated === 'function') {
+          onCreated(created);
+        } else {
+          this.renderPlaylistDetailView(created.id);
+          this.renderSidebarPlaylists();
+          this.renderStats();
+          this.showToast(`Playlist "${name}" created!`);
+        }
+      }
+    };
+
+    modal.querySelector('#submit-create-pl').addEventListener('click', handleCreate);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleCreate();
+      if (e.key === 'Escape') closeModal();
+    });
+  }
+
   showAddSongsModal(plId) {
     const playlist = dataStore.getPlaylists().find(p => p.id === plId);
     if (!playlist) return;
+
+    // Remove any existing modals
+    document.querySelectorAll('.add-songs-modal-overlay').forEach(m => m.remove());
 
     const modal = document.createElement('div');
     modal.className = 'add-songs-modal-overlay';
 
     const currentSongs = dataStore.getSongsByPlaylist(plId);
-    const selectedIds = new Set(currentSongs.map(s => s.id));
+    const existingIds = new Set(currentSongs.map(s => s.id));
+    const selectedIds = new Set();
+    const allSongs = dataStore.getSongs();
+
+    let searchQuery = '';
+
+    const renderSongList = () => {
+      const listEl = modal.querySelector('.add-songs-list');
+      if (!listEl) return;
+
+      const q = searchQuery.toLowerCase().trim();
+      const filtered = q
+        ? allSongs.filter(s =>
+            (s.title && s.title.toLowerCase().includes(q)) ||
+            (s.artist && s.artist.toLowerCase().includes(q)) ||
+            (s.album && s.album.toLowerCase().includes(q))
+          )
+        : allSongs;
+
+      if (!filtered.length) {
+        listEl.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">No matching songs found in your library.</div>`;
+        return;
+      }
+
+      listEl.innerHTML = filtered.map(song => {
+        const isExisting = existingIds.has(song.id);
+        const isSelected = selectedIds.has(song.id);
+        return `
+          <div class="add-song-row ${isExisting ? 'already-added' : (isSelected ? 'selected' : '')}" data-song-id="${song.id}" ${isExisting ? 'title="Already in this playlist"' : ''}>
+            <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
+              <div style="width: 36px; height: 36px; border-radius: var(--radius-sm); overflow: hidden; flex-shrink: 0;">
+                ${this.getCoverSVG(song.title, song.genre)}
+              </div>
+              <div style="min-width: 0; flex: 1;">
+                <div style="font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${song.title}</div>
+                <div style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${song.artist} • ${song.album || song.genre}</div>
+              </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+              ${isExisting ? `
+                <span style="font-size: 11px; font-weight: 600; color: var(--text-muted); background: rgba(255,255,255,0.08); padding: 3px 8px; border-radius: 9999px;">✓ In Playlist</span>
+              ` : `
+                <input type="checkbox" class="song-checkbox" ${isSelected ? 'checked' : ''} style="accent-color: var(--accent-primary); pointer-events: none; width: 16px; height: 16px; cursor: pointer;">
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      listEl.querySelectorAll('.add-song-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const songId = row.getAttribute('data-song-id');
+          if (existingIds.has(songId)) return; // Prevent duplicates
+
+          const checkbox = row.querySelector('.song-checkbox');
+          if (selectedIds.has(songId)) {
+            selectedIds.delete(songId);
+            if (checkbox) checkbox.checked = false;
+            row.classList.remove('selected');
+          } else {
+            selectedIds.add(songId);
+            if (checkbox) checkbox.checked = true;
+            row.classList.add('selected');
+          }
+          updateSaveBtn();
+        });
+      });
+    };
+
+    const updateSaveBtn = () => {
+      const saveBtn = modal.querySelector('#save-add-songs');
+      if (saveBtn) {
+        saveBtn.textContent = selectedIds.size > 0 ? `Add Selected (${selectedIds.size})` : `Add Selected Songs`;
+      }
+    };
 
     modal.innerHTML = `
       <div class="add-songs-modal-card glass-card">
@@ -242,54 +393,41 @@ class MusicOSUI {
           <h3 style="font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
             <span>➕ Add Songs to "${playlist.name}"</span>
           </h3>
-          <button id="close-add-songs-modal" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; cursor: pointer;">✕</button>
+          <button id="close-add-songs-modal" style="width: 28px; height: 28px; border-radius: 50%; background: rgba(255,255,255,0.08); color: #fff; cursor: pointer; border: none; font-size: 14px;">✕</button>
         </div>
 
-        <p style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
-          Select songs from your library to include in this playlist.
+        <p style="font-size: 12px; color: var(--text-muted); margin-top: -4px;">
+          Select songs from your Music OS library to include in this playlist.
         </p>
 
-        <div class="add-songs-list">
-          ${dataStore.getSongs().map(song => {
-            const isSelected = selectedIds.has(song.id);
-            return `
-              <div class="add-song-row ${isSelected ? 'selected' : ''}" data-song-id="${song.id}">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                  <input type="checkbox" class="song-checkbox" ${isSelected ? 'checked' : ''} style="accent-color: var(--accent-primary); pointer-events: none;">
-                  <div>
-                    <div style="font-size: 13px; font-weight: 600; color: #fff;">${song.title}</div>
-                    <div style="font-size: 11px; color: var(--text-muted);">${song.artist} • ${song.genre}</div>
-                  </div>
-                </div>
-              </div>
-            `;
-          }).join('')}
+        <div style="position: relative;">
+          <input id="modal-song-search" class="search-input" type="text" placeholder="Filter songs by title, artist, or album..." style="padding: 9px 14px 9px 36px; width: 100%; font-size: 13px;">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none;">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
         </div>
 
-        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 8px;">
+        <div class="add-songs-list"></div>
+
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin-top: 6px;">
           <button id="cancel-add-songs" class="source-pill" style="cursor: pointer;">Cancel</button>
-          <button id="save-add-songs" style="background: var(--accent-gradient); color: #fff; padding: 8px 20px; border-radius: 9999px; font-weight: 700; font-size: 13px; box-shadow: var(--accent-glow); cursor: pointer;">Save Playlist Tracks</button>
+          <button id="save-add-songs" style="background: var(--accent-gradient); color: #fff; padding: 8px 22px; border-radius: 9999px; font-weight: 700; font-size: 13px; box-shadow: var(--accent-glow); cursor: pointer; border: none;">Add Selected Songs</button>
         </div>
       </div>
     `;
 
     document.body.appendChild(modal);
+    renderSongList();
 
-    modal.querySelectorAll('.add-song-row').forEach(row => {
-      row.addEventListener('click', () => {
-        const songId = row.getAttribute('data-song-id');
-        const checkbox = row.querySelector('.song-checkbox');
-        if (selectedIds.has(songId)) {
-          selectedIds.delete(songId);
-          checkbox.checked = false;
-          row.classList.remove('selected');
-        } else {
-          selectedIds.add(songId);
-          checkbox.checked = true;
-          row.classList.add('selected');
-        }
+    const searchInput = modal.querySelector('#modal-song-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        renderSongList();
       });
-    });
+      searchInput.focus();
+    }
 
     const closeModal = () => modal.remove();
     modal.querySelector('#close-add-songs-modal').addEventListener('click', closeModal);
@@ -299,14 +437,18 @@ class MusicOSUI {
     });
 
     modal.querySelector('#save-add-songs').addEventListener('click', () => {
-      const selectedArray = Array.from(selectedIds);
-      playlist.songIds = selectedArray;
-      playlist.count = selectedArray.length;
-      dataStore.saveState("music_os_playlists", dataStore.getPlaylists());
+      if (selectedIds.size === 0) {
+        this.showToast("No new songs selected.");
+        closeModal();
+        return;
+      }
+
+      dataStore.addSongsToPlaylist(plId, Array.from(selectedIds));
+      this.renderPlaylistDetailView(plId);
       this.renderPlaylists();
       this.renderSidebarPlaylists();
       this.renderStats();
-      this.showToast(`Updated playlist "${playlist.name}" (${selectedArray.length} tracks)`);
+      this.showToast(`Added ${selectedIds.size} song${selectedIds.size === 1 ? '' : 's'} to "${playlist.name}"!`);
       closeModal();
     });
   }
@@ -342,7 +484,8 @@ class MusicOSUI {
             <circle cx="6" cy="18" r="3"></circle>
             <circle cx="18" cy="16" r="3"></circle>
           </svg>
-          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${pl.name}</span>
+          <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${pl.name}</span>
+          ${pl.isFavorite ? `<span style="color: var(--color-pink); font-size: 12px;" title="Favorite">♥</span>` : ''}
         </a>
       </li>
     `).join('');
@@ -359,84 +502,23 @@ class MusicOSUI {
   // ==========================================================================
   // 4. RECENTLY PLAYED TRACKS RENDERING
   // ==========================================================================
+  findTrack(songId) {
+    if (!songId) return null;
+    return (
+      (this.currentDisplayedSongs && this.currentDisplayedSongs.find(s => s.id === songId || s.videoId === songId || s.youtubeId === songId)) ||
+      dataStore.getSongs().find(s => s.id === songId || s.videoId === songId || s.youtubeId === songId) ||
+      dataStore.getQueue().find(s => s.id === songId || s.videoId === songId || s.youtubeId === songId) ||
+      INITIAL_SONGS.find(s => s.id === songId || s.videoId === songId || s.youtubeId === songId)
+    );
+  }
+
   renderRecentlyPlayed(songs = dataStore.getSongs().slice(0, 4)) {
     const grid = document.getElementById('recently-played-grid');
     if (!grid) return;
 
-    const currentTrack = dataStore.getCurrentTrack();
-
-    grid.innerHTML = songs.map(song => {
-      const isCurrent = currentTrack && currentTrack.id === song.id;
-      return `
-        <div class="track-card glass-card ${isCurrent ? 'active-playing' : ''}" data-song-id="${song.id}">
-          <div class="track-thumb-box">
-            ${this.getCoverSVG(song.title, song.genre)}
-            <div class="track-play-badge">
-              <div class="track-play-badge-btn">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                  <polygon points="6 4 18 12 6 20 6 4"/>
-                </svg>
-              </div>
-            </div>
-            ${isCurrent && player.isPlaying ? `
-              <div class="mini-equalizer">
-                <div class="eq-bar"></div>
-                <div class="eq-bar"></div>
-                <div class="eq-bar"></div>
-                <div class="eq-bar"></div>
-              </div>
-            ` : ''}
-          </div>
-          <div class="track-meta">
-            <div class="track-text">
-              <div class="track-title">${song.title}</div>
-              <div class="track-artist">${song.artist}</div>
-            </div>
-            <div class="track-actions">
-              <button class="btn-icon-sm btn-like ${song.liked ? 'liked' : ''}" data-song-id="${song.id}" title="Like">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="${song.liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    // Bind click to play
-    grid.querySelectorAll('.track-card').forEach(card => {
-      card.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-like')) return;
-        const songId = card.getAttribute('data-song-id');
-        const queue = dataStore.getQueue();
-        const index = queue.findIndex(s => s.id === songId);
-        if (index !== -1) {
-          player.loadTrack(index, true);
-        } else {
-          const song = dataStore.getSongs().find(s => s.id === songId);
-          if (song) {
-            dataStore.addTrackToQueue(song);
-            player.loadTrack(dataStore.getQueue().length - 1, true);
-          }
-        }
-      });
-    });
-
-    // Bind heart like toggles
-    grid.querySelectorAll('.btn-like').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const songId = btn.getAttribute('data-song-id');
-        const isLiked = dataStore.toggleLike(songId);
-        btn.classList.toggle('liked', isLiked);
-        btn.querySelector('svg').setAttribute('fill', isLiked ? 'currentColor' : 'none');
-        this.renderStats();
-        this.renderQueue();
-        this.updatePlayerBar(dataStore.getCurrentTrack());
-        this.showToast(isLiked ? "Added to Liked Songs" : "Removed from Liked Songs");
-      });
-    });
+    this.currentDisplayedSongs = songs;
+    grid.innerHTML = this.generateTracksGridHTML(songs, false);
+    this.bindTrackCardEvents(grid);
   }
 
   // ==========================================================================
@@ -661,15 +743,51 @@ class MusicOSUI {
   }
 
   // ==========================================================================
-  // 7. LYRICS RENDERING & SYNC
+  // 7. LYRICS RENDERING & SYNCHRONIZED CLICK-TO-SEEK
   // ==========================================================================
+  isValidSynchronizedLyrics(lyrics) {
+    if (!Array.isArray(lyrics) || lyrics.length === 0) return false;
+    return lyrics.some(line => line && typeof line === 'object' && typeof line.time !== 'undefined' && !isNaN(parseFloat(line.time)) && line.text && !line.text.toLowerCase().includes('placeholder') && !line.text.toLowerCase().includes('streaming high fidelity'));
+  }
+
+  findActiveLyricIndex(lyrics, currentTime) {
+    if (!this.isValidSynchronizedLyrics(lyrics) || typeof currentTime !== 'number' || isNaN(currentTime)) {
+      return -1;
+    }
+    let low = 0;
+    let high = lyrics.length - 1;
+    let result = -1;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const item = lyrics[mid];
+      if (!item || typeof item.time === 'undefined') {
+        high = mid - 1;
+        continue;
+      }
+      const lineTime = typeof item.time === 'number' ? item.time : parseFloat(item.time);
+      if (isNaN(lineTime)) {
+        high = mid - 1;
+        continue;
+      }
+      if (lineTime <= currentTime) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return result;
+  }
+
   renderLyrics() {
     const container = document.getElementById('lyrics-lines-container');
     if (!container) return;
 
+    this.activeLyricIndex = -1;
     const track = dataStore.getCurrentTrack();
-    if (!track || !track.lyrics || track.lyrics.length === 0) {
-      container.innerHTML = `<div class="lyrics-empty">No lyrics available for this track.</div>`;
+    if (!track || !this.isValidSynchronizedLyrics(track.lyrics)) {
+      container.innerHTML = `<div class="lyrics-empty">Lyrics unavailable</div>`;
       return;
     }
 
@@ -679,36 +797,50 @@ class MusicOSUI {
       </div>
     `).join('');
 
-    // Bind click to immediately seek to clicked lyric timestamp
+    // Bind click to immediately seek to clicked lyric timestamp via player abstraction
     container.querySelectorAll('.lyrics-line').forEach(line => {
       line.addEventListener('click', () => {
         const time = parseFloat(line.getAttribute('data-time'));
-        player.seek(time);
-        if (!player.isPlaying) {
-          player.play();
+        if (!isNaN(time)) {
+          player.seek(time);
+          if (!player.isPlaying) {
+            player.play();
+          }
+          this.syncLyrics(time);
+          this.syncFloatingLyrics(time);
+          this.showToast(`Jumped to ${player.formatTime(time)}`);
         }
-        this.syncLyrics(time);
-        this.showToast(`Jumped to ${player.formatTime(time)}`);
       });
     });
+
+    this.syncLyrics(player.getCurrentTime());
   }
 
   syncLyrics(currentTime) {
-    const lines = document.querySelectorAll('.lyrics-line');
-    if (!lines.length) return;
+    const container = document.getElementById('lyrics-lines-container');
+    if (!container) return;
 
-    let activeLine = null;
-    lines.forEach(line => {
-      const time = parseFloat(line.getAttribute('data-time'));
-      if (currentTime >= time) {
-        activeLine = line;
+    const track = dataStore.getCurrentTrack();
+    if (!track || !this.isValidSynchronizedLyrics(track.lyrics)) return;
+
+    const newIndex = this.findActiveLyricIndex(track.lyrics, currentTime);
+    if (newIndex === this.activeLyricIndex) return;
+
+    // Remove active state ONLY from previous line
+    if (this.activeLyricIndex >= 0) {
+      const prevEl = container.querySelector(`.lyrics-line[data-line-index="${this.activeLyricIndex}"]`);
+      if (prevEl) prevEl.classList.remove('active');
+    }
+
+    this.activeLyricIndex = newIndex;
+
+    // Add active state to new line and auto-scroll smoothly
+    if (newIndex >= 0) {
+      const newEl = container.querySelector(`.lyrics-line[data-line-index="${newIndex}"]`);
+      if (newEl) {
+        newEl.classList.add('active');
+        newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    });
-
-    lines.forEach(line => line.classList.remove('active'));
-    if (activeLine) {
-      activeLine.classList.add('active');
-      activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 
@@ -716,14 +848,15 @@ class MusicOSUI {
     const container = document.getElementById('floating-lyrics-scroll');
     if (!container) return;
 
+    this.activeFloatingLyricIndex = -1;
     const track = dataStore.getCurrentTrack();
-    if (!track || !track.lyrics || track.lyrics.length === 0) {
-      container.innerHTML = `<div class="lyrics-empty" style="margin-top: 30px;">No lyrics available for this track.</div>`;
+    if (!track || !this.isValidSynchronizedLyrics(track.lyrics)) {
+      container.innerHTML = `<div class="lyrics-empty" style="margin-top: 30px;">Lyrics unavailable</div>`;
       return;
     }
 
     container.innerHTML = track.lyrics.map((line, idx) => `
-      <div class="floating-lyric-line" data-line-index="${idx}" data-time="${line.time}" title="Jump to ${player.formatTime(line.time)}">
+      <div class="floating-lyric-line" data-line-index="${idx}" data-time="${line.time}" style="cursor: pointer;" title="Jump to ${player.formatTime(line.time)}">
         ${line.text}
       </div>
     `).join('');
@@ -732,33 +865,46 @@ class MusicOSUI {
     container.querySelectorAll('.floating-lyric-line').forEach(line => {
       line.addEventListener('click', () => {
         const time = parseFloat(line.getAttribute('data-time'));
-        player.seek(time);
-        if (!player.isPlaying) {
-          player.play();
+        if (!isNaN(time)) {
+          player.seek(time);
+          if (!player.isPlaying) {
+            player.play();
+          }
+          this.syncLyrics(time);
+          this.syncFloatingLyrics(time);
+          this.showToast(`Jumped to ${player.formatTime(time)}`);
         }
-        this.syncLyrics(time);
-        this.syncFloatingLyrics(time);
-        this.showToast(`Jumped to ${player.formatTime(time)}`);
       });
     });
+
+    this.syncFloatingLyrics(player.getCurrentTime());
   }
 
   syncFloatingLyrics(currentTime) {
-    const lines = document.querySelectorAll('.floating-lyric-line');
-    if (!lines.length) return;
+    const container = document.getElementById('floating-lyrics-scroll');
+    if (!container) return;
 
-    let activeLine = null;
-    lines.forEach(line => {
-      const time = parseFloat(line.getAttribute('data-time'));
-      if (currentTime >= time) {
-        activeLine = line;
+    const track = dataStore.getCurrentTrack();
+    if (!track || !this.isValidSynchronizedLyrics(track.lyrics)) return;
+
+    const newIndex = this.findActiveLyricIndex(track.lyrics, currentTime);
+    if (newIndex === this.activeFloatingLyricIndex) return;
+
+    // Remove active state ONLY from previous line
+    if (this.activeFloatingLyricIndex >= 0) {
+      const prevEl = container.querySelector(`.floating-lyric-line[data-line-index="${this.activeFloatingLyricIndex}"]`);
+      if (prevEl) prevEl.classList.remove('active');
+    }
+
+    this.activeFloatingLyricIndex = newIndex;
+
+    // Add active state to new line and auto-scroll smoothly
+    if (newIndex >= 0) {
+      const newEl = container.querySelector(`.floating-lyric-line[data-line-index="${newIndex}"]`);
+      if (newEl) {
+        newEl.classList.add('active');
+        newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
-    });
-
-    lines.forEach(line => line.classList.remove('active'));
-    if (activeLine) {
-      activeLine.classList.add('active');
-      activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }
 
@@ -1444,10 +1590,7 @@ class MusicOSUI {
 
     if (viewName === 'Home') {
       this.renderHomeView(main, topbarHTML);
-      return;
-    }
-
-    if (viewName === 'Library') {
+    } else if (viewName === 'Library') {
       this.renderLibraryView(main, topbarHTML);
     } else if (viewName === 'Playlists') {
       this.renderPlaylistsListView(main, topbarHTML);
@@ -1464,6 +1607,9 @@ class MusicOSUI {
     } else if (viewName === 'Liked Songs') {
       this.renderLikedSongsView(main, topbarHTML);
     }
+
+    // Refresh search results dynamically for current view
+    searchEngine.performSearch(searchEngine.currentQuery, viewName);
   }
 
   renderHomeView(container, topbarHTML) {
@@ -1632,7 +1778,7 @@ class MusicOSUI {
         <button id="lib-play-all-btn" class="source-pill active" style="padding: 8px 18px; font-weight: 700;">▶ Play All</button>
       </section>
       <div class="tracks-grid" id="library-tracks-grid">
-        ${this.generateTracksGridHTML(songs)}
+        ${this.generateTracksGridHTML(songs, true)}
       </div>
     `;
     this.rebindTopbar();
@@ -1652,6 +1798,8 @@ class MusicOSUI {
 
   renderPlaylistsListView(container, topbarHTML) {
     const playlists = dataStore.getPlaylists();
+    const favPlaylists = playlists.filter(p => !!p.isFavorite);
+
     container.innerHTML = `
       ${topbarHTML}
       <section class="section-header" style="margin-top: 12px;">
@@ -1661,6 +1809,40 @@ class MusicOSUI {
         </h2>
         <button id="view-create-pl-btn" class="source-pill active">+ New Playlist</button>
       </section>
+
+      ${favPlaylists.length > 0 ? `
+        <section style="margin-top: 10px; margin-bottom: 22px;">
+          <div style="font-size: 13px; font-weight: 700; color: var(--color-pink); display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+            <span>♥ Favorite Playlists (${favPlaylists.length})</span>
+          </div>
+          <div class="playlists-grid">
+            ${favPlaylists.map(pl => `
+              <div class="playlist-card glass-card" data-playlist-id="${pl.id}">
+                <div class="playlist-art-wrapper" style="background: ${pl.gradient};">
+                  <svg viewBox="0 0 100 100" class="playlist-svg">
+                    <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="6"/>
+                    <circle cx="50" cy="50" r="14" fill="rgba(255,255,255,0.25)"/>
+                    <path d="M46 40 L60 50 L46 60 Z" fill="#ffffff" opacity="0.9"/>
+                  </svg>
+                  <button class="playlist-quick-play" title="Play ${pl.name}">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                  </button>
+                </div>
+                <div class="playlist-info">
+                  <div class="playlist-header-row">
+                    <div class="playlist-name">${pl.name}</div>
+                    <span style="color: var(--color-pink); font-size: 13px;" title="Favorited">♥</span>
+                  </div>
+                  <div class="playlist-count">${pl.count} tracks • ${pl.category}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      ` : ''}
+
       <div class="playlists-grid" id="playlists-grid">
         ${playlists.map(pl => `
           <div class="playlist-card glass-card" data-playlist-id="${pl.id}">
@@ -1677,7 +1859,10 @@ class MusicOSUI {
               </button>
             </div>
             <div class="playlist-info">
-              <div class="playlist-name">${pl.name}</div>
+              <div class="playlist-header-row">
+                <div class="playlist-name">${pl.name}</div>
+                ${pl.isFavorite ? `<span style="color: var(--color-pink); font-size: 13px;" title="Favorited">♥</span>` : ''}
+              </div>
               <div class="playlist-count">${pl.count} tracks • ${pl.category}</div>
             </div>
           </div>
@@ -1687,23 +1872,28 @@ class MusicOSUI {
     this.rebindTopbar();
 
     container.querySelectorAll('.playlist-card').forEach(card => {
-      card.addEventListener('click', () => {
+      card.addEventListener('click', (e) => {
         const plId = card.getAttribute('data-playlist-id');
-        this.renderPlaylistDetailView(plId);
+        if (e.target.closest('.playlist-quick-play')) {
+          e.stopPropagation();
+          const plSongs = dataStore.getSongsByPlaylist(plId);
+          if (plSongs.length) {
+            dataStore.queue = [...plSongs];
+            dataStore.saveState('music_os_queue', dataStore.queue);
+            player.loadTrack(0, true);
+            this.renderQueue();
+            this.showToast(`Playing playlist: ${card.querySelector('.playlist-name').textContent}`);
+          }
+        } else {
+          this.renderPlaylistDetailView(plId);
+        }
       });
     });
 
     const createBtn = container.querySelector('#view-create-pl-btn');
     if (createBtn) {
       createBtn.addEventListener('click', () => {
-        const name = prompt("Enter a name for your new playlist:");
-        if (name && name.trim()) {
-          dataStore.createPlaylist(name.trim());
-          this.renderPlaylistsListView(container, topbarHTML);
-          this.renderSidebarPlaylists();
-          this.renderStats();
-          this.showToast(`Playlist "${name}" created!`);
-        }
+        this.showCreatePlaylistModal();
       });
     }
   }
@@ -1713,42 +1903,77 @@ class MusicOSUI {
     if (!main) return;
     const topbarHTML = document.querySelector('.topbar')?.outerHTML || '';
     const playlist = dataStore.getPlaylists().find(p => p.id === playlistId) || {
+      id: playlistId,
       name: "Liked Songs",
       gradient: "linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)",
-      category: "Personal"
+      category: "Personal",
+      isFavorite: false
     };
 
     const songs = dataStore.getSongsByPlaylist(playlistId);
+    const isFav = !!playlist.isFavorite;
 
     main.innerHTML = `
       ${topbarHTML}
       <div class="glass-card" style="padding: 24px; display: flex; align-items: center; gap: 24px; margin-top: 8px;">
-        <div style="width: 110px; height: 110px; border-radius: 16px; background: ${playlist.gradient}; display: flex; align-items: center; justify-content: center; box-shadow: var(--accent-glow);">
+        <div style="width: 110px; height: 110px; border-radius: 16px; background: ${playlist.gradient}; display: flex; align-items: center; justify-content: center; box-shadow: var(--accent-glow); flex-shrink: 0;">
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="#ffffff" stroke-width="1.8">
             <path d="M9 18V5l12-2v13"></path>
             <circle cx="6" cy="18" r="3"></circle>
             <circle cx="18" cy="16" r="3"></circle>
           </svg>
         </div>
-        <div style="display: flex; flex-direction: column; gap: 6px;">
-          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-primary); font-weight: 700;">PLAYLIST • ${playlist.category}</span>
+        <div style="display: flex; flex-direction: column; gap: 6px; flex: 1;">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent-primary); font-weight: 700;">PLAYLIST • ${playlist.category}</span>
+          </div>
           <h1 style="font-size: 26px; font-weight: 800; color: #fff;">${playlist.name}</h1>
-          <p style="font-size: 13px; color: var(--text-muted);">${songs.length} tracks available in lounge</p>
-          <div style="display: flex; gap: 10px; margin-top: 6px; flex-wrap: wrap;">
-            <button id="play-pl-detail-btn" style="background: var(--accent-gradient); color: #fff; padding: 8px 22px; border-radius: 9999px; font-weight: 700; font-size: 13px; box-shadow: var(--accent-glow);">▶ Play All</button>
-            ${playlistId !== 'pl-liked' ? `<button id="delete-pl-btn" class="source-pill" style="color: var(--color-pink); border-color: var(--color-pink);">🗑 Delete Playlist</button>` : ''}
-            <button id="back-to-playlists" class="source-pill">← Back</button>
+          <p style="font-size: 13px; color: var(--text-muted);">${songs.length} track${songs.length === 1 ? '' : 's'} available in lounge</p>
+          <div style="display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap;">
+            ${songs.length > 0 ? `<button id="play-pl-detail-btn" style="background: var(--accent-gradient); color: #fff; padding: 8px 22px; border-radius: 9999px; font-weight: 700; font-size: 13px; box-shadow: var(--accent-glow); cursor: pointer; border: none;">▶ Play All</button>` : ''}
+            <button id="add-songs-pl-btn" class="source-pill active" style="font-weight: 700; cursor: pointer;">＋ Add Songs</button>
+            <button id="favorite-pl-btn" class="source-pill ${isFav ? 'active' : ''}" style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
+              <span style="font-size: 14px; color: ${isFav ? 'var(--color-pink)' : 'inherit'};">${isFav ? '♥' : '♡'}</span>
+              <span>${isFav ? 'Favorited' : 'Favorite'}</span>
+            </button>
+            ${playlistId !== 'pl-liked' ? `<button id="delete-pl-btn" class="source-pill" style="color: var(--color-pink); border-color: var(--color-pink); cursor: pointer;">🗑 Delete Playlist</button>` : ''}
+            <button id="back-to-playlists" class="source-pill" style="cursor: pointer;">← Back</button>
           </div>
         </div>
       </div>
 
       <div class="tracks-grid" style="margin-top: 16px;">
-        ${this.generateTracksGridHTML(songs)}
+        ${songs.length > 0 ? this.generateTracksGridHTML(songs, false, { playlistId }) : `
+          <div class="glass-card" style="grid-column: 1 / -1; padding: 48px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; border: 1px dashed var(--border-glass-hover); border-radius: var(--radius-lg);">
+            <div style="font-size: 32px;">🎵</div>
+            <div style="font-size: 16px; font-weight: 700; color: #fff;">This playlist is empty</div>
+            <p style="font-size: 13px; color: var(--text-muted); max-width: 380px;">Add songs from your Music OS library to start building your mix.</p>
+            <button id="empty-add-songs-btn" style="background: var(--accent-gradient); color: #fff; padding: 10px 24px; border-radius: 9999px; font-weight: 700; font-size: 13px; box-shadow: var(--accent-glow); cursor: pointer; border: none;">＋ Add Songs</button>
+          </div>
+        `}
       </div>
     `;
 
     this.rebindTopbar();
     this.bindTrackCardEvents(main);
+
+    // Add Songs buttons
+    const addBtn = main.querySelector('#add-songs-pl-btn');
+    const emptyAddBtn = main.querySelector('#empty-add-songs-btn');
+    if (addBtn) addBtn.addEventListener('click', () => this.showAddSongsModal(playlistId));
+    if (emptyAddBtn) emptyAddBtn.addEventListener('click', () => this.showAddSongsModal(playlistId));
+
+    // Favorite Playlist Toggle
+    const favBtn = main.querySelector('#favorite-pl-btn');
+    if (favBtn) {
+      favBtn.addEventListener('click', () => {
+        const isFavorited = dataStore.toggleFavoritePlaylist(playlistId);
+        this.renderPlaylistDetailView(playlistId);
+        this.renderSidebarPlaylists();
+        this.renderStats();
+        this.showToast(isFavorited ? `"${playlist.name}" marked as favorite!` : `Removed "${playlist.name}" from favorites`);
+      });
+    }
 
     const delPlBtn = main.querySelector('#delete-pl-btn');
     if (delPlBtn) {
@@ -1848,7 +2073,7 @@ class MusicOSUI {
           <span>Albums (${albums.length})</span>
         </h2>
       </section>
-      <div class="playlists-grid">
+      <div class="playlists-grid" id="albums-grid">
         ${albums.map(al => `
           <div class="playlist-card glass-card album-card" data-album="${al.name}">
             <div class="playlist-art-wrapper">
@@ -2101,6 +2326,8 @@ class MusicOSUI {
 
   renderLikedSongsView(container, topbarHTML) {
     const liked = dataStore.getSongs().filter(s => s.liked);
+    const favPlaylists = dataStore.getPlaylists().filter(p => !!p.isFavorite);
+
     container.innerHTML = `
       ${topbarHTML}
       <section class="section-header" style="margin-top: 12px;">
@@ -2108,14 +2335,67 @@ class MusicOSUI {
           <svg viewBox="0 0 24 24" width="22" height="22" fill="#ec4899" stroke="#ec4899" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
           <span>Favorite Liked Songs (${liked.length})</span>
         </h2>
-        <button id="play-liked-all-btn" class="source-pill active">▶ Play Favorites</button>
+        ${liked.length > 0 ? `<button id="play-liked-all-btn" class="source-pill active">▶ Play Favorites</button>` : ''}
       </section>
+
+      ${favPlaylists.length > 0 ? `
+        <section style="margin-top: 8px; margin-bottom: 20px;">
+          <div style="font-size: 13px; font-weight: 700; color: var(--color-pink); display: flex; align-items: center; gap: 6px; margin-bottom: 12px;">
+            <span>♥ Favorite Playlists (${favPlaylists.length})</span>
+          </div>
+          <div class="playlists-grid">
+            ${favPlaylists.map(pl => `
+              <div class="playlist-card glass-card" data-playlist-id="${pl.id}">
+                <div class="playlist-art-wrapper" style="background: ${pl.gradient};">
+                  <svg viewBox="0 0 100 100" class="playlist-svg">
+                    <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="6"/>
+                    <circle cx="50" cy="50" r="14" fill="rgba(255,255,255,0.25)"/>
+                    <path d="M46 40 L60 50 L46 60 Z" fill="#ffffff" opacity="0.9"/>
+                  </svg>
+                  <button class="playlist-quick-play" title="Play ${pl.name}">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                  </button>
+                </div>
+                <div class="playlist-info">
+                  <div class="playlist-header-row">
+                    <div class="playlist-name">${pl.name}</div>
+                    <span style="color: var(--color-pink); font-size: 13px;">♥</span>
+                  </div>
+                  <div class="playlist-count">${pl.count} tracks • ${pl.category}</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </section>
+      ` : ''}
+
       <div class="tracks-grid">
         ${this.generateTracksGridHTML(liked)}
       </div>
     `;
     this.rebindTopbar();
     this.bindTrackCardEvents(container);
+
+    container.querySelectorAll('.playlist-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const plId = card.getAttribute('data-playlist-id');
+        if (e.target.closest('.playlist-quick-play')) {
+          e.stopPropagation();
+          const plSongs = dataStore.getSongsByPlaylist(plId);
+          if (plSongs.length) {
+            dataStore.queue = [...plSongs];
+            dataStore.saveState('music_os_queue', dataStore.queue);
+            player.loadTrack(0, true);
+            this.renderQueue();
+            this.showToast(`Playing playlist: ${card.querySelector('.playlist-name').textContent}`);
+          }
+        } else {
+          this.renderPlaylistDetailView(plId);
+        }
+      });
+    });
 
     container.querySelector('#play-liked-all-btn')?.addEventListener('click', () => {
       if (liked.length) {
@@ -2276,8 +2556,14 @@ class MusicOSUI {
     });
   }
 
-  generateTracksGridHTML(songs) {
+  generateTracksGridHTML(songs, showDelete = false, playlistContext = null) {
+    if (!Array.isArray(songs) || !songs.length) {
+      return `<div style="grid-column: 1 / -1; padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px;">No tracks found.</div>`;
+    }
+
     const currentTrack = dataStore.getCurrentTrack();
+    const inPlaylistId = playlistContext ? playlistContext.playlistId : null;
+
     return songs.map(song => {
       const isCurrent = currentTrack && currentTrack.id === song.id;
       return `
@@ -2285,31 +2571,65 @@ class MusicOSUI {
           <div class="track-thumb-box">
             ${this.getCoverSVG(song.title, song.genre)}
             <div class="track-play-badge">
-              <div class="track-play-badge-btn">
+              <div class="track-play-badge-btn" title="Play ${song.title}">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
                   <polygon points="6 4 18 12 6 20 6 4"/>
                 </svg>
               </div>
             </div>
+            ${isCurrent && player.isPlaying ? `
+              <div class="mini-equalizer">
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+                <div class="eq-bar"></div>
+              </div>
+            ` : ''}
           </div>
           <div class="track-meta">
             <div class="track-text">
-              <div class="track-title">${song.title}</div>
-              <div class="track-artist">${song.artist}</div>
+              <div class="track-title" title="${song.title}">${song.title}</div>
+              <div class="track-artist" title="${song.artist}">${song.artist}</div>
             </div>
             <div class="track-actions">
-              <button class="btn-icon-sm btn-like ${song.liked ? 'liked' : ''}" data-song-id="${song.id}" title="Like">
+              <button class="btn-icon-sm btn-like ${song.liked ? 'liked' : ''}" data-song-id="${song.id}" title="Favorite">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="${song.liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                 </svg>
               </button>
-              <button class="btn-icon-sm btn-add-to-playlist" data-song-id="${song.id}" title="Add to Playlist">+</button>
-              <button class="btn-icon-sm btn-delete-track" data-song-id="${song.id}" title="Delete Song">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <button class="btn-icon-sm btn-add-library" data-song-id="${song.id}" title="Add to Library">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 5v14M5 12h14"></path>
                 </svg>
               </button>
+              <button class="btn-icon-sm btn-add-queue" data-song-id="${song.id}" title="Add to Queue">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6"></line>
+                  <line x1="8" y1="12" x2="21" y2="12"></line>
+                  <line x1="8" y1="18" x2="14" y2="18"></line>
+                  <polyline points="17 15 20 18 17 21"></polyline>
+                </svg>
+              </button>
+              <button class="btn-icon-sm btn-add-to-playlist" data-song-id="${song.id}" title="Add to Playlist">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 11H5m14 0a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2m14 0V9a2 2 0 0 0-2-2M5 11V9a2 2 0 0 1 2-2m0 0V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2M7 7h10"></path>
+                </svg>
+              </button>
+              ${inPlaylistId ? `
+                <button class="btn-icon-sm btn-remove-from-playlist" data-song-id="${song.id}" data-playlist-id="${inPlaylistId}" title="Remove from Playlist" style="color: var(--color-pink);">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              ` : (showDelete ? `
+                <button class="btn-icon-sm btn-delete-track" data-song-id="${song.id}" title="Delete Song">
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              ` : '')}
             </div>
           </div>
         </div>
@@ -2318,20 +2638,21 @@ class MusicOSUI {
   }
 
   bindTrackCardEvents(container) {
+    if (!container) return;
+
     container.querySelectorAll('.track-card').forEach(card => {
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.btn-like') || e.target.closest('.btn-delete-track') || e.target.closest('.btn-add-to-playlist')) return;
+        if (e.target.closest('.track-actions')) return;
         const songId = card.getAttribute('data-song-id');
+        const song = this.findTrack(songId);
+        if (!song) return;
+
+        // Ensure track is in queue
+        dataStore.addTrackToQueue(song);
         const queue = dataStore.getQueue();
-        const index = queue.findIndex(s => s.id === songId);
+        const index = queue.findIndex(s => s.id === song.id || (song.videoId && s.videoId === song.videoId));
         if (index !== -1) {
           player.loadTrack(index, true);
-        } else {
-          const song = dataStore.getSongs().find(s => s.id === songId);
-          if (song) {
-            dataStore.addTrackToQueue(song);
-            player.loadTrack(dataStore.getQueue().length - 1, true);
-          }
         }
       });
     });
@@ -2340,13 +2661,52 @@ class MusicOSUI {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const songId = btn.getAttribute('data-song-id');
-        const isLiked = dataStore.toggleLike(songId);
-        btn.classList.toggle('liked', isLiked);
-        btn.querySelector('svg').setAttribute('fill', isLiked ? 'currentColor' : 'none');
-        this.renderStats();
-        this.renderQueue();
-        this.updatePlayerBar(dataStore.getCurrentTrack());
-        this.showToast(isLiked ? "Added to Liked Songs" : "Removed from Liked Songs");
+        const song = this.findTrack(songId);
+        if (song) {
+          dataStore.addSong(song);
+          const isLiked = dataStore.toggleLike(song.id);
+          btn.classList.toggle('liked', isLiked);
+          btn.querySelector('svg').setAttribute('fill', isLiked ? 'currentColor' : 'none');
+          this.renderStats();
+          this.renderQueue();
+          this.updatePlayerBar(dataStore.getCurrentTrack());
+          this.showToast(isLiked ? "Added to Liked Songs" : "Removed from Liked Songs");
+        }
+      });
+    });
+
+    container.querySelectorAll('.btn-add-library').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const songId = btn.getAttribute('data-song-id');
+        const song = this.findTrack(songId);
+        if (song) {
+          const { song: savedSong, isDuplicate } = dataStore.addSong(song);
+          this.renderStats();
+          this.renderSidebarPlaylists();
+          if (isDuplicate) {
+            this.showToast(`"${song.title}" is already in your library.`);
+          } else {
+            this.showToast(`Added "${song.title}" to library!`);
+          }
+        }
+      });
+    });
+
+    container.querySelectorAll('.btn-add-queue').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const songId = btn.getAttribute('data-song-id');
+        const song = this.findTrack(songId);
+        if (song) {
+          const added = dataStore.addTrackToQueue(song);
+          this.renderQueue();
+          if (added) {
+            this.showToast(`Added "${song.title}" to queue.`);
+          } else {
+            this.showToast(`"${song.title}" is already in queue.`);
+          }
+        }
       });
     });
 
@@ -2358,18 +2718,34 @@ class MusicOSUI {
       });
     });
 
+    container.querySelectorAll('.btn-remove-from-playlist').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const songId = btn.getAttribute('data-song-id');
+        const plId = btn.getAttribute('data-playlist-id');
+        const song = this.findTrack(songId);
+        if (confirm(`Remove "${song?.title || 'this track'}" from playlist?`)) {
+          dataStore.removeSongFromPlaylist(plId, songId);
+          this.renderPlaylistDetailView(plId);
+          this.renderSidebarPlaylists();
+          this.renderStats();
+          this.showToast(`Removed "${song?.title || 'track'}" from playlist`);
+        }
+      });
+    });
+
     container.querySelectorAll('.btn-delete-track').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         const songId = btn.getAttribute('data-song-id');
-        const song = dataStore.getSongs().find(s => s.id === songId);
+        const song = this.findTrack(songId);
         if (confirm(`Remove "${song?.title || 'this track'}" from your lounge?`)) {
           dataStore.deleteSong(songId);
           this.renderStats();
           this.renderQueue();
           const card = btn.closest('.track-card');
           if (card) card.remove();
-          this.showToast(`Track "${song?.title}" removed`);
+          this.showToast(`Track "${song?.title || ''}" removed`);
         }
       });
     });
@@ -2378,6 +2754,7 @@ class MusicOSUI {
   showAddToPlaylistQuickMenu(btn, songId) {
     document.querySelectorAll('.playlist-dropdown-menu').forEach(m => m.remove());
     const playlists = dataStore.getPlaylists();
+    const song = this.findTrack(songId);
 
     const menu = document.createElement('div');
     menu.className = 'playlist-dropdown-menu';
@@ -2396,10 +2773,15 @@ class MusicOSUI {
       item.addEventListener('click', (e) => {
         e.stopPropagation();
         const plId = item.getAttribute('data-pl-id');
-        dataStore.addSongsToPlaylist(plId, [songId]);
+        if (song) {
+          dataStore.addSong(song);
+          dataStore.addSongsToPlaylist(plId, [song.id]);
+        } else {
+          dataStore.addSongsToPlaylist(plId, [songId]);
+        }
         this.renderPlaylists();
         this.renderSidebarPlaylists();
-        this.showToast(`Added track to "${item.textContent.replace('+', '').trim()}"`);
+        this.showToast(`Added "${song?.title || 'track'}" to "${item.textContent.replace('+', '').trim()}"`);
         menu.remove();
       });
     });
@@ -2408,65 +2790,151 @@ class MusicOSUI {
   rebindTopbar() {
     const themePill = document.getElementById('topbar-theme-pill');
     if (themePill) {
-      themePill.addEventListener('click', (e) => {
+      themePill.onclick = (e) => {
         e.stopPropagation();
         themeManager.openRightPanel();
-      });
+      };
     }
 
-    // Source pills (All, YouTube, Local, Spotify, Amazon)
-    const sourcePills = document.querySelectorAll('.source-pill[data-source]');
-    sourcePills.forEach(pill => {
-      pill.addEventListener('click', () => {
-        sourcePills.forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        const source = pill.getAttribute('data-source');
-        dataStore.activeSource = source;
-        const allSongs = dataStore.getSongs();
-        const filtered = source === 'all' ? allSongs : allSongs.filter(s => s.source.toLowerCase() === source.toLowerCase());
-        if (this.currentView === 'Home') {
-          this.renderRecentlyPlayed(filtered.slice(0, 4));
-        } else if (this.currentView === 'Library') {
-          const grid = document.getElementById('library-tracks-grid');
-          if (grid) {
-            grid.innerHTML = this.generateTracksGridHTML(filtered);
-            this.bindTrackCardEvents(document.querySelector('.main-content'));
-          }
-        }
-      });
-    });
+    // Connect unified search engine to topbar DOM elements
+    searchEngine.rebind();
+  }
 
-    // Main search input & clear button
-    const searchInput = document.getElementById('main-search-input');
-    const searchClear = document.getElementById('search-clear-btn');
-    if (searchInput) {
-      searchInput.addEventListener('input', (e) => {
-        const query = e.target.value.trim().toLowerCase();
-        dataStore.searchQuery = query;
-        if (searchClear) searchClear.style.display = query ? 'block' : 'none';
-        const allSongs = dataStore.getSongs();
-        const filtered = query
-          ? allSongs.filter(s => s.title.toLowerCase().includes(query) || s.artist.toLowerCase().includes(query) || s.album.toLowerCase().includes(query) || s.genre.toLowerCase().includes(query))
-          : allSongs;
-        if (this.currentView === 'Home') {
-          this.renderRecentlyPlayed(query ? filtered : filtered.slice(0, 4));
-        } else if (this.currentView === 'Library') {
-          const grid = document.getElementById('library-tracks-grid');
-          if (grid) {
-            grid.innerHTML = this.generateTracksGridHTML(filtered);
-            this.bindTrackCardEvents(document.querySelector('.main-content'));
-          }
-        }
-      });
+  handleSearchResults(results) {
+    const { isQuery, query, source, pageContext, songs, playlists, albums, providerStatus } = results;
+    const view = this.currentView;
+
+    // Handle provider not connected status (Spotify / Amazon)
+    if (providerStatus && !providerStatus.connected) {
+      const providerCard = `
+        <div class="glass-card" style="grid-column: 1 / -1; padding: 28px; text-align: center; border: 1px dashed var(--border-glass-hover); border-radius: var(--radius-lg); margin-top: 8px;">
+          <div style="font-size: 28px; margin-bottom: 8px;">🔌</div>
+          <div style="font-weight: 700; font-size: 16px; color: #fff; margin-bottom: 6px;">${providerStatus.provider} Integration</div>
+          <p style="font-size: 13px; color: var(--text-muted); max-width: 460px; margin: 0 auto; line-height: 1.5;">${providerStatus.message}</p>
+        </div>
+      `;
+
+      if (view === 'Home') {
+        const grid = document.getElementById('recently-played-grid');
+        if (grid) grid.innerHTML = providerCard;
+      } else if (view === 'Playlists') {
+        const grid = document.getElementById('playlists-grid');
+        if (grid) grid.innerHTML = providerCard;
+      } else if (view === 'Albums') {
+        const grid = document.getElementById('albums-grid');
+        if (grid) grid.innerHTML = providerCard;
+      } else if (view === 'Library') {
+        const grid = document.getElementById('library-tracks-grid');
+        if (grid) grid.innerHTML = providerCard;
+      }
+      return;
     }
 
-    if (searchClear) {
-      searchClear.addEventListener('click', () => {
-        if (searchInput) {
-          searchInput.value = '';
-          searchInput.dispatchEvent(new Event('input'));
+    if (view === 'Home') {
+      if (isQuery) {
+        this.renderRecentlyPlayed(songs);
+        if (playlists) this.renderPlaylists(playlists);
+      } else {
+        const displaySongs = (source === 'all' || !source) ? songs.slice(0, 4) : songs;
+        this.renderRecentlyPlayed(displaySongs);
+        this.renderPlaylists(playlists);
+      }
+    } else if (view === 'Playlists') {
+      const grid = document.getElementById('playlists-grid');
+      if (grid) {
+        if (playlists && playlists.length > 0) {
+          grid.innerHTML = playlists.map(pl => `
+            <div class="playlist-card glass-card" data-playlist-id="${pl.id}">
+              <div class="playlist-art-wrapper" style="background: ${pl.gradient};">
+                <svg viewBox="0 0 100 100" class="playlist-svg">
+                  <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="6"/>
+                  <circle cx="50" cy="50" r="14" fill="rgba(255,255,255,0.25)"/>
+                  <path d="M46 40 L60 50 L46 60 Z" fill="#ffffff" opacity="0.9"/>
+                </svg>
+                <button class="playlist-quick-play" title="Play ${pl.name}">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="playlist-info">
+                <div class="playlist-name">${pl.name}</div>
+                <div class="playlist-count">${pl.count} tracks • ${pl.category}</div>
+              </div>
+            </div>
+          `).join('');
+
+          grid.querySelectorAll('.playlist-card').forEach(card => {
+            card.addEventListener('click', (e) => {
+              const plId = card.getAttribute('data-playlist-id');
+              if (e.target.closest('.playlist-quick-play')) {
+                e.stopPropagation();
+                const plSongs = dataStore.getSongsByPlaylist(plId);
+                if (plSongs.length) {
+                  dataStore.queue = [...plSongs];
+                  dataStore.saveState('music_os_queue', dataStore.queue);
+                  player.loadTrack(0, true);
+                  this.renderQueue();
+                  this.showToast(`Playing playlist: ${card.querySelector('.playlist-name').textContent}`);
+                }
+              } else {
+                this.renderPlaylistDetailView(plId);
+              }
+            });
+          });
+        } else {
+          grid.innerHTML = `<div style="grid-column: 1 / -1; padding: 28px; text-align: center; color: var(--text-muted); font-size: 13px;">No matching playlists found.</div>`;
         }
-      });
+      }
+    } else if (view === 'Albums') {
+      const grid = document.getElementById('albums-grid');
+      if (grid) {
+        if (albums && albums.length > 0) {
+          grid.innerHTML = albums.map(al => `
+            <div class="playlist-card glass-card album-card" data-album="${al.name}">
+              <div class="playlist-art-wrapper">
+                ${this.getCoverSVG(al.name, al.genre)}
+              </div>
+              <div class="playlist-info">
+                <div class="playlist-name">${al.name}</div>
+                <div class="playlist-count">${al.artist} • ${al.count} track${al.count > 1 ? 's' : ''}</div>
+              </div>
+            </div>
+          `).join('');
+
+          grid.querySelectorAll('.album-card').forEach(card => {
+            card.addEventListener('click', () => {
+              const album = card.getAttribute('data-album');
+              const albumSongs = dataStore.getSongsByAlbum(album);
+              const main = document.querySelector('.main-content');
+              const topbarHTML = document.querySelector('.topbar')?.outerHTML || '';
+              main.innerHTML = `
+                ${topbarHTML}
+                <section class="section-header" style="margin-top: 12px;">
+                  <h2 class="section-title"><span>${album}</span></h2>
+                  <button id="back-to-albums" class="source-pill">← All Albums</button>
+                </section>
+                <div class="tracks-grid">
+                  ${this.generateTracksGridHTML(albumSongs)}
+                </div>
+              `;
+              this.rebindTopbar();
+              this.bindTrackCardEvents(main);
+              main.querySelector('#back-to-albums')?.addEventListener('click', () => {
+                this.renderAlbumsView(main, topbarHTML);
+              });
+            });
+          });
+        } else {
+          grid.innerHTML = `<div style="grid-column: 1 / -1; padding: 28px; text-align: center; color: var(--text-muted); font-size: 13px;">No matching albums found.</div>`;
+        }
+      }
+    } else if (view === 'Library') {
+      const grid = document.getElementById('library-tracks-grid');
+      if (grid) {
+        grid.innerHTML = this.generateTracksGridHTML(songs);
+        this.bindTrackCardEvents(document.querySelector('.main-content'));
+      }
     }
   }
 

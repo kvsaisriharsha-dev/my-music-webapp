@@ -1,9 +1,10 @@
 /* ==========================================================================
    MUSIC OS - Audio Player Engine
-   HTML5 Audio + Web Audio Synth Fallback + Seek Dragging + Event System
+   HTML5 Audio + Official YouTube IFrame Player + Web Audio Synth Fallback
    ========================================================================== */
 
 import { dataStore } from './data.js';
+import { youtubePlayer } from './youtube-player.js';
 
 class MusicOSPlayer {
   constructor() {
@@ -17,6 +18,7 @@ class MusicOSPlayer {
     this.listeners = new Map();
     this.isDragging = false;
     this.listeningTimer = null;
+    this.syntheticCurrentTime = 0;
 
     // Web Audio Fallback Synthesizer for guaranteed audible sound
     this.audioCtx = null;
@@ -30,11 +32,12 @@ class MusicOSPlayer {
     this.activeEqPreset = localStorage.getItem('music_os_eq_preset') || 'flat';
 
     this.initAudioEvents();
+    this.initYouTubeEvents();
   }
 
   initAudioEvents() {
     this.audio.addEventListener('timeupdate', () => {
-      if (!this.isDragging) {
+      if (!this.isDragging && !this.isCurrentTrackYouTube()) {
         this.emit('timeupdate', {
           currentTime: this.audio.currentTime,
           duration: this.audio.duration || this.getCurrentTrackDuration(),
@@ -44,18 +47,100 @@ class MusicOSPlayer {
     });
 
     this.audio.addEventListener('ended', () => {
-      if (this.repeatMode === 'one') {
-        this.seek(0);
-        this.play();
-      } else {
-        this.next();
+      if (!this.isCurrentTrackYouTube()) {
+        if (this.repeatMode === 'one') {
+          this.seek(0);
+          this.play();
+        } else {
+          this.next();
+        }
       }
     });
 
     this.audio.addEventListener('error', (e) => {
-      console.warn("Audio source load error, falling back to Web Audio Synth", e);
-      this.startSynthFallback();
+      if (!this.isCurrentTrackYouTube()) {
+        const track = dataStore.getCurrentTrack();
+        console.warn("[Player] HTML5 audio load error for track:", track?.title, track?.url, e);
+        this.isPlaying = false;
+        this.emit('playstate', false);
+        this.stopListeningTracker();
+        if (track && track.isSynthTrack) {
+          this.startSynthFallback();
+          this.isPlaying = true;
+          this.emit('playstate', true);
+          this.startListeningTracker();
+        } else {
+          this.emit('error', { source: 'local', track, message: `Audio unavailable for "${track?.title || 'this track'}".` });
+        }
+      }
     });
+  }
+
+  initYouTubeEvents() {
+    // Initialize YouTube Player Adapter
+    youtubePlayer.init();
+
+    youtubePlayer.on('play', () => {
+      if (this.isCurrentTrackYouTube()) {
+        this.isPlaying = true;
+        this.emit('playstate', true);
+        this.startListeningTracker();
+      }
+    });
+
+    youtubePlayer.on('pause', () => {
+      if (this.isCurrentTrackYouTube()) {
+        this.isPlaying = false;
+        this.emit('playstate', false);
+        this.stopListeningTracker();
+      }
+    });
+
+    youtubePlayer.on('ended', () => {
+      if (this.isCurrentTrackYouTube()) {
+        if (this.repeatMode === 'one') {
+          this.seek(0);
+          this.play();
+        } else {
+          this.next();
+        }
+      }
+    });
+
+    youtubePlayer.on('error', (errCode) => {
+      const track = dataStore.getCurrentTrack();
+      console.warn(`[Player] YouTube playback error code ${errCode} for track: "${track?.title}" (videoId: ${track?.videoId || track?.youtubeId || track?.id})`);
+      this.isPlaying = false;
+      this.emit('playstate', false);
+      this.stopListeningTracker();
+
+      let msg = `YouTube track "${track?.title || 'selected'}" is currently unavailable.`;
+      if (errCode === 100) msg = `YouTube video for "${track?.title || 'track'}" was not found or removed.`;
+      else if (errCode === 101 || errCode === 150) msg = `Embedding disabled by creator for "${track?.title || 'track'}".`;
+      else if (errCode === 2) msg = `Invalid YouTube video ID for "${track?.title || 'track'}".`;
+
+      this.emit('error', { source: 'youtube', errorCode: errCode, track, message: msg });
+    });
+  }
+
+  getYouTubeVideoId(track) {
+    if (!track) return null;
+    if (track.videoId) return track.videoId;
+    if (track.youtubeId) return track.youtubeId;
+    if (typeof track.id === 'string' && track.id.startsWith('yt-')) {
+      return track.id.replace('yt-', '');
+    }
+    if (track.url) {
+      const match = track.url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+      if (match) return match[1];
+    }
+    return null;
+  }
+
+  isCurrentTrackYouTube() {
+    const track = dataStore.getCurrentTrack();
+    if (!track) return false;
+    return track.source === 'youtube' || Boolean(this.getYouTubeVideoId(track));
   }
 
   // Web Audio Context initialization
@@ -160,7 +245,7 @@ class MusicOSPlayer {
 
       const track = dataStore.getCurrentTrack();
       const noteFreqs = { 'C4': 261.63, 'D4': 293.66, 'E4': 329.63, 'F4': 349.23, 'G4': 392.00, 'A4': 440.00, 'B4': 493.88 };
-      const freq = noteFreqs[track.synthNote || 'C4'] || 329.63;
+      const freq = noteFreqs[track?.synthNote || 'C4'] || 329.63;
 
       this.synthOsc.type = 'triangle';
       this.synthOsc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
@@ -206,28 +291,109 @@ class MusicOSPlayer {
 
     dataStore.currentTrackIndex = Math.max(0, Math.min(index, queue.length - 1));
     const track = dataStore.getCurrentTrack();
+    if (!track) return;
 
     this.stopSynthFallback();
-    if (track.url) {
-      this.audio.src = track.url;
+    this.syntheticCurrentTime = 0;
+
+    const ytVideoId = this.getYouTubeVideoId(track);
+    const isYT = track.source === 'youtube' || Boolean(ytVideoId);
+
+    if (isYT) {
+      if (!ytVideoId) {
+        console.warn("[Player] YouTube video ID is missing for track:", track);
+        this.emit('trackchange', track);
+        this.isPlaying = false;
+        this.emit('playstate', false);
+        this.stopListeningTracker();
+        this.emit('error', { source: 'youtube', track, message: `YouTube track "${track.title}" is unavailable.` });
+        return;
+      }
+
+      // Pause and clear HTML5 audio source
+      this.audio.pause();
+      this.audio.removeAttribute('src');
       this.audio.load();
-    }
 
-    this.emit('trackchange', track);
+      // Load official YouTube audio
+      youtubePlayer.setVolume(this.volume);
+      youtubePlayer.loadVideo(ytVideoId, autoPlay);
 
-    if (autoPlay) {
-      this.play();
+      this.emit('trackchange', track);
+
+      if (autoPlay) {
+        this.isPlaying = true;
+        this.emit('playstate', true);
+        this.startListeningTracker();
+      } else {
+        this.isPlaying = false;
+        this.emit('playstate', false);
+        this.stopListeningTracker();
+      }
     } else {
-      this.pause();
+      // Non-YouTube Track: stop YouTube stream
+      youtubePlayer.stop();
+
+      if (track.url) {
+        this.audio.src = track.url;
+        this.audio.load();
+      } else if (!track.isSynthTrack) {
+        console.warn("[Player] Local track missing audio URL:", track);
+        this.emit('trackchange', track);
+        this.isPlaying = false;
+        this.emit('playstate', false);
+        this.stopListeningTracker();
+        this.emit('error', { source: 'local', track, message: `Audio source unavailable for "${track.title}".` });
+        return;
+      }
+
+      this.emit('trackchange', track);
+
+      if (autoPlay) {
+        this.play();
+      } else {
+        this.pause();
+      }
     }
   }
 
   play() {
     this.ensureAudioCtx();
     const track = dataStore.getCurrentTrack();
+    if (!track) return;
 
-    if (!this.audio.src && track.url) {
+    const ytVideoId = this.getYouTubeVideoId(track);
+    const isYT = track && (track.source === 'youtube' || Boolean(ytVideoId));
+
+    if (isYT) {
+      if (!ytVideoId) {
+        console.warn("[Player] Track marked as YouTube but has no videoId:", track);
+        this.isPlaying = false;
+        this.emit('playstate', false);
+        this.emit('error', { source: 'youtube', track, message: `YouTube track "${track.title}" is unavailable.` });
+        return;
+      }
+
+      this.audio.pause();
+      this.stopSynthFallback();
+      youtubePlayer.setVolume(this.volume);
+      youtubePlayer.play();
+      this.isPlaying = true;
+      this.emit('playstate', true);
+      this.startListeningTracker();
+      return;
+    }
+
+    // HTML5 Audio playback
+    youtubePlayer.pause();
+    if (!this.audio.src && track && track.url) {
       this.audio.src = track.url;
+    } else if (!track.url && !track.isSynthTrack) {
+      console.warn("[Player] Track has no playable URL:", track);
+      this.isPlaying = false;
+      this.emit('playstate', false);
+      this.emit('error', { source: 'local', track, message: `Audio unavailable for "${track.title}".` });
+      return;
     }
 
     const playPromise = this.audio.play();
@@ -238,17 +404,27 @@ class MusicOSPlayer {
           this.emit('playstate', true);
           this.startListeningTracker();
         })
-        .catch(() => {
-          // If browser audio blocked or remote URL blocked, start synth backup
-          this.startSynthFallback();
-          this.isPlaying = true;
-          this.emit('playstate', true);
-          this.startListeningTracker();
+        .catch((err) => {
+          console.warn("[Player] Audio playback error:", err);
+          this.isPlaying = false;
+          this.emit('playstate', false);
+          this.stopListeningTracker();
+          if (track.isSynthTrack) {
+            this.startSynthFallback();
+            this.isPlaying = true;
+            this.emit('playstate', true);
+            this.startListeningTracker();
+          } else {
+            this.emit('error', { source: 'local', track, error: err, message: `Playback failed for "${track.title}".` });
+          }
         });
     }
   }
 
   pause() {
+    if (this.isCurrentTrackYouTube()) {
+      youtubePlayer.pause();
+    }
     this.audio.pause();
     this.stopSynthFallback();
     this.isPlaying = false;
@@ -282,7 +458,8 @@ class MusicOSPlayer {
     const queue = dataStore.getQueue();
     if (!queue.length) return;
 
-    if (this.audio.currentTime > 3) {
+    const curTime = this.getCurrentTime();
+    if (curTime > 3) {
       this.seek(0);
       return;
     }
@@ -292,19 +469,28 @@ class MusicOSPlayer {
   }
 
   seek(seconds) {
-    if (this.audio.duration && !isNaN(this.audio.duration)) {
-      this.audio.currentTime = Math.max(0, Math.min(seconds, this.audio.duration));
+    if (this.isCurrentTrackYouTube()) {
+      youtubePlayer.seekTo(seconds);
+    } else {
+      if (this.audio.duration && !isNaN(this.audio.duration)) {
+        this.audio.currentTime = Math.max(0, Math.min(seconds, this.audio.duration));
+      }
     }
+
     this.syntheticCurrentTime = seconds;
     const duration = this.getCurrentTrackDuration();
     this.emit('timeupdate', {
       currentTime: seconds,
       duration: duration,
-      progress: (seconds / duration) * 100
+      progress: duration > 0 ? (seconds / duration) * 100 : 0
     });
   }
 
   getCurrentTime() {
+    if (this.isCurrentTrackYouTube()) {
+      const ytTime = youtubePlayer.getCurrentTime();
+      if (ytTime > 0) return ytTime;
+    }
     if (this.audio.currentTime && !isNaN(this.audio.currentTime) && this.audio.currentTime > 0) {
       return this.audio.currentTime;
     }
@@ -320,6 +506,7 @@ class MusicOSPlayer {
   setVolume(val) {
     this.volume = Math.max(0, Math.min(1, val));
     this.audio.volume = this.volume;
+    youtubePlayer.setVolume(this.volume);
     if (this.synthGain && this.audioCtx) {
       this.synthGain.gain.setValueAtTime(0.15 * this.volume, this.audioCtx.currentTime);
     }
@@ -339,6 +526,10 @@ class MusicOSPlayer {
   }
 
   getCurrentTrackDuration() {
+    if (this.isCurrentTrackYouTube()) {
+      const ytDur = youtubePlayer.getDuration();
+      if (ytDur > 0) return ytDur;
+    }
     const track = dataStore.getCurrentTrack();
     return (this.audio.duration && !isNaN(this.audio.duration)) ? this.audio.duration : (track ? track.duration : 180);
   }
@@ -355,19 +546,33 @@ class MusicOSPlayer {
           this.emit('listeningtimeupdate', dataStore.getStats());
         }
 
-        // High precision live time update for synchronized lyrics
-        const curTime = this.getCurrentTime();
-        if (this.isUsingSynth || !this.audio.duration || isNaN(this.audio.currentTime)) {
+        const isYT = this.isCurrentTrackYouTube();
+        const duration = this.getCurrentTrackDuration();
+
+        if (isYT) {
+          const ytTime = youtubePlayer.getCurrentTime();
+          const ytDur = youtubePlayer.getDuration() || duration;
+          this.syntheticCurrentTime = ytTime;
+          this.emit('timeupdate', {
+            currentTime: ytTime,
+            duration: ytDur,
+            progress: ytDur > 0 ? (ytTime / ytDur) * 100 : 0
+          });
+        } else if (this.isUsingSynth || !this.audio.duration || isNaN(this.audio.currentTime)) {
           this.syntheticCurrentTime = (this.syntheticCurrentTime || 0) + 0.25;
-          const duration = this.getCurrentTrackDuration();
           if (this.syntheticCurrentTime >= duration) {
             this.syntheticCurrentTime = 0;
-            this.next();
+            if (this.repeatMode === 'one') {
+              this.seek(0);
+              this.play();
+            } else {
+              this.next();
+            }
           } else {
             this.emit('timeupdate', {
               currentTime: this.syntheticCurrentTime,
               duration: duration,
-              progress: (this.syntheticCurrentTime / duration) * 100
+              progress: duration > 0 ? (this.syntheticCurrentTime / duration) * 100 : 0
             });
           }
         } else {

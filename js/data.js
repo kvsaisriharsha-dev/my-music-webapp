@@ -14,7 +14,7 @@ export const THEMES = [
   { id: "minimal", name: "Minimal", swatch: "swatch-minimal", desc: "Sleek Titanium Glass" }
 ];
 
-// Rich Curated Songs Library with Direct Working Audio & Rich Lyrics
+// Rich Curated Songs Library with Real Playable Audio & Rich Lyrics
 export const INITIAL_SONGS = [
   {
     id: "song-1",
@@ -24,8 +24,10 @@ export const INITIAL_SONGS = [
     duration: 198, // 3:18
     cover: "assets/covers/starlight.svg",
     genre: "Chill",
-    source: "local",
-    url: "https://cdn.freesound.org/previews/612/612610_5674468-lq.mp3",
+    source: "youtube",
+    videoId: "5qap5aO4i9A",
+    youtubeId: "5qap5aO4i9A",
+    url: "",
     synthNote: "C4",
     liked: true,
     lyrics: [
@@ -47,11 +49,13 @@ export const INITIAL_SONGS = [
     title: "Midnight City",
     artist: "Neon Skyline",
     album: "Cyber Dreams",
-    duration: 214, // 3:34
+    duration: 244, // 4:04
     cover: "assets/covers/midnight.svg",
     genre: "Focus",
-    source: "spotify",
-    url: "https://cdn.freesound.org/previews/580/580310_11861866-lq.mp3",
+    source: "youtube",
+    videoId: "dX3k_QDnzHE",
+    youtubeId: "dX3k_QDnzHE",
+    url: "",
     synthNote: "E4",
     liked: true,
     lyrics: [
@@ -71,11 +75,13 @@ export const INITIAL_SONGS = [
     title: "Ocean Eyes",
     artist: "Deep Tide",
     album: "Abyssal Whispers",
-    duration: 185, // 3:05
+    duration: 200, // 3:20
     cover: "assets/covers/ocean.svg",
     genre: "Chill",
     source: "youtube",
-    url: "https://cdn.freesound.org/previews/556/556708_11861866-lq.mp3",
+    videoId: "viimfQi_pUw",
+    youtubeId: "viimfQi_pUw",
+    url: "",
     synthNote: "G4",
     liked: true,
     lyrics: [
@@ -98,8 +104,10 @@ export const INITIAL_SONGS = [
     duration: 172, // 2:52
     cover: "assets/covers/tokyo.svg",
     genre: "Focus",
-    source: "local",
-    url: "https://cdn.freesound.org/previews/518/518888_11861866-lq.mp3",
+    source: "youtube",
+    videoId: "TURbeWK2wwg",
+    youtubeId: "TURbeWK2wwg",
+    url: "",
     synthNote: "A4",
     liked: false,
     lyrics: [
@@ -121,8 +129,10 @@ export const INITIAL_SONGS = [
     duration: 220, // 3:40
     cover: "assets/covers/telugu.svg",
     genre: "Telugu",
-    source: "spotify",
-    url: "https://cdn.freesound.org/previews/476/476672_1015240-lq.mp3",
+    source: "youtube",
+    videoId: "skGky0PlmrY",
+    youtubeId: "skGky0PlmrY",
+    url: "",
     synthNote: "F4",
     liked: true,
     lyrics: [
@@ -144,8 +154,10 @@ export const INITIAL_SONGS = [
     duration: 245,
     cover: "assets/covers/dreamer.svg",
     genre: "Chill",
-    source: "amazon",
-    url: "https://cdn.freesound.org/previews/522/522248_11861866-lq.mp3",
+    source: "youtube",
+    videoId: "fKopy74weus",
+    youtubeId: "fKopy74weus",
+    url: "",
     synthNote: "D4",
     liked: false,
     lyrics: [
@@ -165,7 +177,9 @@ export const INITIAL_SONGS = [
     cover: "assets/covers/cyber.svg",
     genre: "Workout",
     source: "youtube",
-    url: "https://cdn.freesound.org/previews/612/612610_5674468-lq.mp3",
+    videoId: "4xDzrJKXOOY",
+    youtubeId: "4xDzrJKXOOY",
+    url: "",
     synthNote: "B4",
     liked: true,
     lyrics: [
@@ -183,70 +197,131 @@ export const INITIAL_PLAYLISTS = [
   {
     id: "pl-liked",
     name: "Liked Songs",
-    count: 128,
+    count: 5,
     icon: "heart",
     gradient: "linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)",
-    category: "Personal"
+    category: "Personal",
+    isFavorite: true,
+    songIds: ["song-1", "song-2", "song-3", "song-5", "song-7"]
   },
   {
     id: "pl-coding",
     name: "Coding",
-    count: 42,
+    count: 2,
     icon: "code",
     gradient: "linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%)",
-    category: "Focus"
+    category: "Focus",
+    isFavorite: false,
+    songIds: ["song-2", "song-4"]
   },
   {
     id: "pl-nightdrive",
     name: "Night Drive",
-    count: 36,
+    count: 3,
     icon: "car",
     gradient: "linear-gradient(135deg, #8b5cf6 0%, #1e1b4b 100%)",
-    category: "Vibes"
+    category: "Vibes",
+    isFavorite: false,
+    songIds: ["song-1", "song-3", "song-6"]
   },
   {
     id: "pl-workout",
     name: "Workout",
-    count: 54,
+    count: 1,
     icon: "flame",
     gradient: "linear-gradient(135deg, #f97316 0%, #ef4444 100%)",
-    category: "Energy"
+    category: "Energy",
+    isFavorite: false,
+    songIds: ["song-7"]
   },
   {
     id: "pl-telugu",
     name: "Telugu Hits",
-    count: 87,
+    count: 1,
     icon: "disc",
     gradient: "linear-gradient(135deg, #f59e0b 0%, #ec4899 100%)",
-    category: "Regional"
+    category: "Regional",
+    isFavorite: false,
+    songIds: ["song-5"]
   },
   {
     id: "pl-chill",
     name: "Chill Vibes",
-    count: 61,
+    count: 3,
     icon: "coffee",
     gradient: "linear-gradient(135deg, #10b981 0%, #06b6d4 100%)",
-    category: "Relax"
+    category: "Relax",
+    isFavorite: false,
+    songIds: ["song-1", "song-3", "song-6"]
   },
   {
     id: "pl-english",
     name: "English Favs",
-    count: 120,
+    count: 6,
     icon: "music",
     gradient: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
-    category: "Favorites"
+    category: "Favorites",
+    isFavorite: false,
+    songIds: ["song-1", "song-2", "song-3", "song-4", "song-6", "song-7"]
   }
 ];
 
 // App State Store Class
 class MusicOSDataStore {
   constructor() {
-    this.songs = this.loadState("music_os_songs", INITIAL_SONGS);
-    this.playlists = this.loadState("music_os_playlists", INITIAL_PLAYLISTS);
-    this.queue = this.loadState("music_os_queue", [...this.songs]);
+    const savedSongs = this.loadState("music_os_songs", null);
+    if (!savedSongs) {
+      this.songs = [...INITIAL_SONGS];
+    } else {
+      // Migrate curated songs in local storage with up-to-date videoId/source
+      this.songs = savedSongs.map(s => {
+        const match = INITIAL_SONGS.find(i => i.id === s.id || (i.title === s.title && i.artist === s.artist));
+        if (match) {
+          return {
+            ...s,
+            videoId: s.videoId || match.videoId,
+            youtubeId: s.youtubeId || match.youtubeId,
+            source: s.source || match.source
+          };
+        }
+        return s;
+      });
+    }
+
+    const loadedPlaylists = this.loadState("music_os_playlists", INITIAL_PLAYLISTS);
+    this.playlists = loadedPlaylists.map(p => {
+      const match = INITIAL_PLAYLISTS.find(i => i.id === p.id);
+      const songIds = Array.isArray(p.songIds) ? p.songIds : (match ? match.songIds : []);
+      const count = p.id === 'pl-liked' ? this.songs.filter(s => s.liked).length : (songIds ? songIds.length : (p.count || 0));
+      return {
+        ...p,
+        isFavorite: typeof p.isFavorite === 'boolean' ? p.isFavorite : (match ? match.isFavorite : false),
+        songIds,
+        count
+      };
+    });
+
+    const savedQueue = this.loadState("music_os_queue", null);
+    if (!savedQueue) {
+      this.queue = [...this.songs];
+    } else {
+      this.queue = savedQueue.map(q => {
+        const match = this.songs.find(s => s.id === q.id) || INITIAL_SONGS.find(i => i.id === q.id || (i.title === q.title && i.artist === q.artist));
+        if (match) {
+          return {
+            ...q,
+            videoId: q.videoId || match.videoId,
+            youtubeId: q.youtubeId || match.youtubeId,
+            source: q.source || match.source
+          };
+        }
+        return q;
+      });
+    }
+
     this.activeTheme = localStorage.getItem("music_os_theme") || "aurora";
     this.currentTrackIndex = 0;
-    this.listeningSeconds = parseInt(localStorage.getItem("music_os_listening_seconds") || "28920", 10); // ~482 mins base
+    this.listeningSeconds = parseInt(localStorage.getItem("music_os_listening_seconds") || "28920", 10);
     this.currentFilter = "Recently Played";
     this.activeSource = "All";
     this.searchQuery = "";
@@ -301,10 +376,21 @@ class MusicOSDataStore {
   }
 
   addTrackToQueue(song) {
-    if (!this.queue.find(s => s.id === song.id)) {
+    if (!song) return false;
+    const videoId = song.videoId || song.youtubeId || (typeof song.id === 'string' && song.id.startsWith('yt-') ? song.id.replace('yt-', '') : null);
+
+    const exists = this.queue.some(s => {
+      if (s.id === song.id) return true;
+      if (videoId && (s.videoId === videoId || s.youtubeId === videoId || s.id === `yt-${videoId}`)) return true;
+      return false;
+    });
+
+    if (!exists) {
       this.queue.push(song);
       this.saveState("music_os_queue", this.queue);
+      return true;
     }
+    return false;
   }
 
   removeTrackFromQueue(index) {
@@ -330,6 +416,17 @@ class MusicOSDataStore {
     }
   }
 
+  toggleFavoritePlaylist(playlistId) {
+    const playlist = this.playlists.find(p => p.id === playlistId);
+    if (playlist) {
+      playlist.isFavorite = !playlist.isFavorite;
+      this.saveState("music_os_playlists", this.playlists);
+      this.notifyPlaylistsChange();
+      return playlist.isFavorite;
+    }
+    return false;
+  }
+
   createPlaylist(name, category = "Custom") {
     const newPlaylist = {
       id: `pl-${Date.now()}`,
@@ -338,6 +435,7 @@ class MusicOSDataStore {
       icon: "music",
       gradient: "linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)",
       category,
+      isFavorite: false,
       songIds: []
     };
     this.playlists.unshift(newPlaylist);
@@ -349,7 +447,10 @@ class MusicOSDataStore {
   addSongsToPlaylist(playlistId, songIdsArray) {
     const playlist = this.playlists.find(p => p.id === playlistId);
     if (!playlist) return false;
-    if (!playlist.songIds) playlist.songIds = [];
+    if (!Array.isArray(playlist.songIds)) {
+      const initialSongs = this.getSongsByPlaylist(playlistId);
+      playlist.songIds = initialSongs.map(s => s.id);
+    }
     songIdsArray.forEach(id => {
       if (!playlist.songIds.includes(id)) {
         playlist.songIds.push(id);
@@ -363,7 +464,11 @@ class MusicOSDataStore {
 
   removeSongFromPlaylist(playlistId, songId) {
     const playlist = this.playlists.find(p => p.id === playlistId);
-    if (!playlist || !playlist.songIds) return false;
+    if (!playlist) return false;
+    if (!Array.isArray(playlist.songIds)) {
+      const initialSongs = this.getSongsByPlaylist(playlistId);
+      playlist.songIds = initialSongs.map(s => s.id);
+    }
     playlist.songIds = playlist.songIds.filter(id => id !== songId);
     playlist.count = playlist.songIds.length;
     this.saveState("music_os_playlists", this.playlists);
@@ -377,27 +482,42 @@ class MusicOSDataStore {
   }
 
   addSong(song) {
+    if (!song) return { song: null, isDuplicate: false };
+
+    // Primary duplicate check: for YouTube tracks, check by videoId / youtubeId
+    const videoId = song.videoId || song.youtubeId || (typeof song.id === 'string' && song.id.startsWith('yt-') ? song.id.replace('yt-', '') : null);
+
+    let existing = null;
+    if (videoId) {
+      existing = this.songs.find(s => s.videoId === videoId || s.youtubeId === videoId || s.id === `yt-${videoId}` || s.id === song.id);
+    } else {
+      existing = this.songs.find(s => s.id === song.id || (s.title && s.artist && s.title.toLowerCase() === song.title.toLowerCase() && s.artist.toLowerCase() === song.artist.toLowerCase()));
+    }
+
+    if (existing) {
+      return { song: existing, isDuplicate: true };
+    }
+
     const newSong = {
-      id: song.id || `song-${Date.now()}`,
+      id: song.id || (videoId ? `yt-${videoId}` : `song-${Date.now()}`),
       title: song.title || "Untitled Track",
       artist: song.artist || "Unknown Artist",
-      album: song.album || "Imported Music",
+      album: song.album || (song.source === 'youtube' ? "YouTube Music" : "Imported Music"),
       duration: song.duration || 180,
-      cover: song.cover || "assets/covers/starlight.svg",
-      genre: song.genre || "Chill",
-      source: song.source || "local",
+      cover: song.cover || song.thumbnail || "assets/covers/starlight.svg",
+      genre: song.genre || (song.source === 'youtube' ? "YouTube" : "Chill"),
+      source: song.source || (videoId ? "youtube" : "local"),
+      videoId: videoId || song.videoId || undefined,
+      youtubeId: videoId || song.youtubeId || undefined,
       url: song.url || "",
       synthNote: song.synthNote || "C4",
       liked: !!song.liked,
-      lyrics: song.lyrics || [
-        { time: 0, text: `✦ [Imported: ${song.title}] ✦` },
-        { time: 10, text: "Enjoy your music lounge session." }
-      ]
+      lyrics: song.lyrics || null
     };
+
     this.songs.unshift(newSong);
     this.saveState("music_os_songs", this.songs);
-    this.addTrackToQueue(newSong);
-    return newSong;
+    return { song: newSong, isDuplicate: false };
   }
 
   deleteSong(songId) {
@@ -459,7 +579,7 @@ class MusicOSDataStore {
     }
     const playlist = this.playlists.find(p => p.id === playlistId);
     if (!playlist) return this.songs;
-    if (playlist.songIds && playlist.songIds.length > 0) {
+    if (Array.isArray(playlist.songIds)) {
       return this.songs.filter(s => playlist.songIds.includes(s.id));
     }
     if (playlist.name === 'Coding') return this.songs.filter(s => s.genre === 'Focus');

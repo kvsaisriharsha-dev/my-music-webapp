@@ -190,15 +190,19 @@ class MusicOSThemeManager {
     const blurSlider = document.getElementById('theme-blur-slider');
 
     if (opSlider) {
-      opSlider.addEventListener('input', (e) => {
+      const handleOpacityChange = (e) => {
         this.setBgOpacity(e.target.value);
-      });
+      };
+      opSlider.addEventListener('input', handleOpacityChange);
+      opSlider.addEventListener('change', handleOpacityChange);
     }
 
     if (blurSlider) {
-      blurSlider.addEventListener('input', (e) => {
+      const handleBlurChange = (e) => {
         this.setBgBlur(e.target.value);
-      });
+      };
+      blurSlider.addEventListener('input', handleBlurChange);
+      blurSlider.addEventListener('change', handleBlurChange);
     }
   }
 }
