@@ -371,6 +371,9 @@ class MusicOSDataStore {
         if (q.id === songId) q.liked = song.liked;
       });
       this.saveState("music_os_queue", this.queue);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("songlikedchanged", { detail: { songId, liked: song.liked } }));
+      }
     }
     return song ? song.liked : false;
   }
@@ -410,9 +413,9 @@ class MusicOSDataStore {
     this.saveState("music_os_queue", this.queue);
   }
 
-  notifyPlaylistsChange() {
+  notifyPlaylistsChange(actionData = null) {
     if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("playlistschange", { detail: { playlists: this.playlists } }));
+      window.dispatchEvent(new CustomEvent("playlistschange", { detail: { playlists: this.playlists, action: actionData } }));
     }
   }
 
@@ -421,7 +424,7 @@ class MusicOSDataStore {
     if (playlist) {
       playlist.isFavorite = !playlist.isFavorite;
       this.saveState("music_os_playlists", this.playlists);
-      this.notifyPlaylistsChange();
+      this.notifyPlaylistsChange({ type: 'favorite', playlistId, isFavorite: playlist.isFavorite });
       return playlist.isFavorite;
     }
     return false;
@@ -440,7 +443,7 @@ class MusicOSDataStore {
     };
     this.playlists.unshift(newPlaylist);
     this.saveState("music_os_playlists", this.playlists);
-    this.notifyPlaylistsChange();
+    this.notifyPlaylistsChange({ type: 'create', playlist: newPlaylist });
     return newPlaylist;
   }
 
@@ -458,7 +461,7 @@ class MusicOSDataStore {
     });
     playlist.count = playlist.songIds.length;
     this.saveState("music_os_playlists", this.playlists);
-    this.notifyPlaylistsChange();
+    this.notifyPlaylistsChange({ type: 'update', playlist });
     return true;
   }
 
@@ -472,7 +475,7 @@ class MusicOSDataStore {
     playlist.songIds = playlist.songIds.filter(id => id !== songId);
     playlist.count = playlist.songIds.length;
     this.saveState("music_os_playlists", this.playlists);
-    this.notifyPlaylistsChange();
+    this.notifyPlaylistsChange({ type: 'update', playlist });
     return true;
   }
 
@@ -594,7 +597,7 @@ class MusicOSDataStore {
     if (playlistId === 'pl-liked') return false; // Protected default playlist
     this.playlists = this.playlists.filter(p => p.id !== playlistId);
     this.saveState("music_os_playlists", this.playlists);
-    this.notifyPlaylistsChange();
+    this.notifyPlaylistsChange({ type: 'delete', playlistId });
     return true;
   }
 

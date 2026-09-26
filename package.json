@@ -1,0 +1,23 @@
+{
+  "name": "my_music_webapp",
+  "version": "1.0.0",
+  "description": "A modern, high-performance dark glassmorphism music web application built with vanilla JavaScript (ES Modules), HTML5, and CSS3. MUSIC OS features official YouTube IFrame playback, local HTML5 audio streaming, synchronized click-to-seek lyrics, full playlist management, photographic theme landscapes, a 5-band audio equalizer, real-time listening analytics, and a multi-view global search engine.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kvsaisriharsha-dev/my-music-webapp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/kvsaisriharsha-dev/my-music-webapp/issues"
+  },
+  "homepage": "https://github.com/kvsaisriharsha-dev/my-music-webapp#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2"
+  }
+}

@@ -4,6 +4,7 @@
    ========================================================================== */
 
 import { THEMES } from './data.js';
+import { preferencesManager } from './preferences.js';
 
 class MusicOSThemeManager {
   constructor() {
@@ -46,12 +47,14 @@ class MusicOSThemeManager {
     this.bgOpacity = Math.max(0.1, Math.min(1, parseFloat(val)));
     localStorage.setItem('music_os_bg_opacity', this.bgOpacity.toString());
     this.applyBgSettings();
+    preferencesManager.saveUserPreferences({ bgOpacity: this.bgOpacity });
   }
 
   setBgBlur(val) {
     this.bgBlur = Math.max(0, Math.min(40, parseInt(val, 10)));
     localStorage.setItem('music_os_bg_blur', this.bgBlur.toString());
     this.applyBgSettings();
+    preferencesManager.saveUserPreferences({ bgBlur: this.bgBlur });
   }
 
   applyTheme(themeId, notify = true) {
@@ -64,6 +67,7 @@ class MusicOSThemeManager {
     this.updateUISelection(validTheme);
 
     if (notify) {
+      preferencesManager.saveActiveTheme(validTheme);
       window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme: validTheme } }));
     }
   }
@@ -84,6 +88,7 @@ class MusicOSThemeManager {
     if (save) {
       localStorage.setItem('music_os_custom_bg', cleanUrl);
       this.customBgUrl = cleanUrl;
+      preferencesManager.saveUserPreferences({ customBgUrl: cleanUrl });
     } else {
       this.customBgUrl = cleanUrl;
     }
@@ -97,6 +102,7 @@ class MusicOSThemeManager {
     document.body.classList.remove('has-custom-bg');
     localStorage.removeItem('music_os_custom_bg');
     this.customBgUrl = '';
+    preferencesManager.saveUserPreferences({ customBgUrl: '' });
   }
 
   openRightPanel() {

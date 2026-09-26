@@ -6,7 +6,9 @@
 class MusicOSEnvironment {
   constructor() {
     this.env = {
-      YOUTUBE_API_KEY: ""
+      YOUTUBE_API_KEY: "",
+      SUPABASE_URL: "",
+      SUPABASE_PUBLISHABLE_KEY: ""
     };
     this.loaded = false;
   }
@@ -14,8 +16,8 @@ class MusicOSEnvironment {
   /**
    * Initializes environment configuration by trying multiple secure sources:
    * 1. window.__ENV__ (injected by backend server if present)
-   * 2. localStorage (user custom key override)
-   * 3. Asynchronously fetching local .env / .env.local file
+   * 2. Local .env / .env.local files (supported on local web servers)
+   * 3. localStorage (user custom key override)
    */
   async init() {
     // 1. Check window.__ENV__
@@ -23,15 +25,16 @@ class MusicOSEnvironment {
       Object.assign(this.env, window.__ENV__);
     }
 
-    // 2. Check localStorage custom override
-    const storedKey = localStorage.getItem("YOUTUBE_API_KEY");
-    if (storedKey) {
-      this.env.YOUTUBE_API_KEY = storedKey;
-    }
+    // 2. Fetch local .env and .env.local files (.env.local overrides .env)
+    await this.loadFromEnvFiles();
 
-    // 3. Attempt to fetch local .env or .env.local file (supported on local servers)
-    if (!this.env.YOUTUBE_API_KEY) {
-      await this.loadFromEnvFiles();
+    // 3. Check localStorage custom overrides (highest browser priority)
+    const configKeys = ['YOUTUBE_API_KEY', 'SUPABASE_URL', 'SUPABASE_PUBLISHABLE_KEY'];
+    for (const key of configKeys) {
+      const storedVal = localStorage.getItem(key);
+      if (storedVal) {
+        this.env[key] = storedVal;
+      }
     }
 
     this.loaded = true;
@@ -39,16 +42,13 @@ class MusicOSEnvironment {
   }
 
   async loadFromEnvFiles() {
-    const filesToTry = ['.env.local', '.env'];
+    const filesToTry = ['.env', '.env.local'];
     for (const file of filesToTry) {
       try {
         const response = await fetch(file);
         if (response.ok) {
           const text = await response.text();
           this.parseEnvText(text);
-          if (this.env.YOUTUBE_API_KEY) {
-            break;
-          }
         }
       } catch {
         // Silent catch when running via raw file:// protocol or if server blocks .env
