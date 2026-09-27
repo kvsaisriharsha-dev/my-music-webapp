@@ -16,7 +16,6 @@ import { dataStore } from './data.js';
  */
 export function mapPlaylistToDb(pl, userId) {
   if (!pl || !userId) return null;
-  const songIds = Array.isArray(pl.songIds) ? pl.songIds : [];
   return {
     id: String(pl.id),
     user_id: userId,
@@ -25,7 +24,6 @@ export function mapPlaylistToDb(pl, userId) {
     icon: pl.icon || 'music',
     gradient: pl.gradient || 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
     is_favorite: Boolean(pl.isFavorite),
-    count: songIds.length || pl.count || 0,
     updated_at: new Date().toISOString()
   };
 }
@@ -162,8 +160,26 @@ class MusicOSPlaylistsCloud {
 
       if (songIds.length === 0) return { success: true };
 
+      // Query which songIds exist in public.songs to avoid 23503 foreign key violation
+      let validSongIds = songIds;
+      try {
+        const { data: existingSongs } = await client
+          .from('songs')
+          .select('id')
+          .in('id', songIds.map(String));
+        const existingSet = new Set((existingSongs || []).map(r => r.id));
+        validSongIds = songIds.filter(id => existingSet.has(String(id)));
+      } catch (e) {
+        // Continue with original list if check fails
+      }
+
+      if (validSongIds.length === 0) {
+        console.warn(`⚠️ [PlaylistsCloud] Songs for playlist "${playlistId}" are not in public.songs catalog yet. Skipping playlist_songs write.`);
+        return { success: true };
+      }
+
       // 2. Prepare new ordered records
-      const relations = songIds.map((songId, index) => ({
+      const relations = validSongIds.map((songId, index) => ({
         playlist_id: String(playlistId),
         song_id: String(songId),
         position: index,
@@ -219,15 +235,12 @@ class MusicOSPlaylistsCloud {
         return { success: false, error: error.message };
       }
 
-      // Update count on playlist
-      const localPl = dataStore.getPlaylists().find(p => p.id === playlistId);
-      if (localPl) {
-        await client
-          .from('playlists')
-          .update({ count: localPl.songIds?.length || 0, updated_at: new Date().toISOString() })
-          .eq('id', String(playlistId))
-          .eq('user_id', userId);
-      }
+      // Update timestamp on playlist
+      await client
+        .from('playlists')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', String(playlistId))
+        .eq('user_id', userId);
 
       return { success: true };
     } catch (err) {
@@ -263,15 +276,12 @@ class MusicOSPlaylistsCloud {
         return { success: false, error: error.message };
       }
 
-      // Update count on playlist
-      const localPl = dataStore.getPlaylists().find(p => p.id === playlistId);
-      if (localPl) {
-        await client
-          .from('playlists')
-          .update({ count: localPl.songIds?.length || 0, updated_at: new Date().toISOString() })
-          .eq('id', String(playlistId))
-          .eq('user_id', userId);
-      }
+      // Update timestamp on playlist
+      await client
+        .from('playlists')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', String(playlistId))
+        .eq('user_id', userId);
 
       return { success: true };
     } catch (err) {

@@ -57,9 +57,12 @@ class MusicOSAuth {
    * Internal helper to update memory state and trigger listeners.
    */
   updateState(session) {
+    const isSameUser = this.state.user?.id === session?.user?.id && this.state.isAuthenticated === !!(session && session.user);
     this.state.session = session || null;
     this.state.user = session?.user || null;
     this.state.isAuthenticated = !!(session && session.user);
+
+    // Notify registered subscribers
     this.notifyListeners();
   }
 
@@ -165,6 +168,7 @@ class MusicOSAuth {
 
   /**
    * Signs in a user with email and password.
+   * Relies on Supabase onAuthStateChange event stream for state updates to prevent duplicate triggers.
    * @param {string} email 
    * @param {string} password 
    * @returns {Promise<{success: boolean, user?: any, session?: any, error?: string}>}
@@ -194,8 +198,6 @@ class MusicOSAuth {
         return { success: false, error: error.message };
       }
 
-      this.updateState(data.session);
-
       return {
         success: true,
         user: data.user,
@@ -208,6 +210,7 @@ class MusicOSAuth {
 
   /**
    * Signs out the current user and clears Supabase session.
+   * Relies on Supabase onAuthStateChange for state updates.
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   async signOut() {
@@ -222,7 +225,6 @@ class MusicOSAuth {
       if (error) {
         console.warn('⚠️ [Auth] Sign-out warning:', error.message);
       }
-      this.updateState(null);
       return { success: true };
     } catch (err) {
       this.updateState(null);

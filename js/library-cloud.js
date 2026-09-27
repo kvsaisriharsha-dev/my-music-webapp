@@ -199,11 +199,28 @@ class MusicOSLibraryCloud {
       // 2. Batch upsert songs into public.songs (Catalog)
       const songsResult = await songsCloud.upsertSongs(localSongs);
       if (!songsResult.success) {
-        console.warn('⚠️ [LibraryCloud] Songs catalog sync warning:', songsResult.error);
+        console.warn('⚠️ [LibraryCloud] Songs catalog sync warning (RLS or Network):', songsResult.error);
       }
 
-      // 3. Batch upsert user_library relations
-      const libraryRecords = localSongs.map(song => ({
+      // 3. Filter library records to ensure referenced songs exist in public.songs
+      let songsToSync = localSongs;
+      if (!songsResult.success) {
+        try {
+          const { data: existingSongs } = await client
+            .from('songs')
+            .select('id')
+            .in('id', localSongs.map(s => String(s.id)));
+          const existingIds = new Set((existingSongs || []).map(r => r.id));
+          songsToSync = localSongs.filter(s => existingIds.has(String(s.id)));
+          if (songsToSync.length === 0) {
+            console.warn('⚠️ [LibraryCloud] Songs are not present in public.songs catalog yet. Skipping user_library writes to prevent foreign key errors.');
+          }
+        } catch (e) {
+          songsToSync = [];
+        }
+      }
+
+      const libraryRecords = songsToSync.map(song => ({
         user_id: userId,
         song_id: String(song.id),
         liked: Boolean(song.liked),
@@ -213,20 +230,21 @@ class MusicOSLibraryCloud {
       const chunkSize = 50;
       let librarySyncedCount = 0;
 
-      for (let i = 0; i < libraryRecords.length; i += chunkSize) {
-        const chunk = libraryRecords.slice(i, i + chunkSize);
-        const { error } = await client
-          .from('user_library')
-          .upsert(chunk, { onConflict: 'user_id,song_id' });
+      if (libraryRecords.length > 0) {
+        for (let i = 0; i < libraryRecords.length; i += chunkSize) {
+          const chunk = libraryRecords.slice(i, i + chunkSize);
+          const { error } = await client
+            .from('user_library')
+            .upsert(chunk, { onConflict: 'user_id,song_id' });
 
-        if (error) {
-          console.warn(`⚠️ [LibraryCloud] user_library batch upsert chunk error [${i}..${i + chunk.length}]:`, error.message);
-        } else {
-          librarySyncedCount += chunk.length;
+          if (error) {
+            console.warn(`⚠️ [LibraryCloud] user_library batch upsert chunk error [${i}..${i + chunk.length}]:`, error.message);
+          } else {
+            librarySyncedCount += chunk.length;
+          }
         }
+        console.log(`☁️ [LibraryCloud] Synchronized ${librarySyncedCount} tracks to user_library.`);
       }
-
-      console.log(`☁️ [LibraryCloud] Synchronized ${librarySyncedCount} tracks to user_library.`);
 
       // 4. Fetch cloud user_library to reconcile any previously saved cloud likes into local songs
       const cloudLibrary = await this.getUserLibrary();

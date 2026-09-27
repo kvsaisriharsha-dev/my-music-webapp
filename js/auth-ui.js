@@ -16,6 +16,7 @@ class MusicOSAuthUI {
   init() {
     this.createAuthModal();
     this.bindSidebarProfile();
+    this.bindTopbarProfile();
 
     // Subscribe to Auth State Changes to update UI
     authManager.onAuthStateChange((state) => {
@@ -330,35 +331,78 @@ class MusicOSAuthUI {
   }
 
   /**
-   * Updates sidebar user card based on current auth state.
+   * Binds click events to the topbar avatar.
+   */
+  bindTopbarProfile() {
+    const topbarAvatar = document.querySelector('.topbar-avatar');
+    if (!topbarAvatar) return;
+
+    topbarAvatar.style.cursor = 'pointer';
+    topbarAvatar.addEventListener('click', (e) => {
+      e.preventDefault();
+      const state = authManager.getAuthState();
+
+      if (state.isAuthenticated) {
+        this.showAccountDetailsModal(state.user);
+      } else {
+        this.showAuthModal('signin');
+      }
+    });
+  }
+
+  /**
+   * Updates sidebar user card and topbar avatar based on current auth state.
    */
   updateProfileUI(state) {
     const nameEl = document.querySelector('.sidebar-user .user-name');
     const planEl = document.querySelector('.sidebar-user .user-plan');
     const avatarEl = document.querySelector('.sidebar-user .user-avatar');
-
-    if (!nameEl || !planEl || !avatarEl) return;
+    const topbarAvatar = document.querySelector('.topbar-avatar');
 
     if (state.isAuthenticated && state.user) {
       const email = state.user.email || 'User';
       const initial = email.charAt(0).toUpperCase();
       const displayName = email.split('@')[0];
 
-      nameEl.textContent = displayName;
-      nameEl.title = email;
-      planEl.textContent = "Supabase Synced";
-      planEl.style.color = "var(--color-green)";
-      avatarEl.textContent = initial;
-      avatarEl.style.background = "linear-gradient(135deg, #10b981, #06b6d4)";
-      avatarEl.style.boxShadow = "0 0 12px rgba(16, 185, 129, 0.4)";
+      if (nameEl) {
+        nameEl.textContent = displayName;
+        nameEl.title = email;
+      }
+      if (planEl) {
+        planEl.textContent = "Supabase Synced";
+        planEl.style.color = "var(--color-green)";
+      }
+      if (avatarEl) {
+        avatarEl.textContent = initial;
+        avatarEl.style.background = "linear-gradient(135deg, #10b981, #06b6d4)";
+        avatarEl.style.boxShadow = "0 0 12px rgba(16, 185, 129, 0.4)";
+      }
+      if (topbarAvatar) {
+        topbarAvatar.textContent = initial;
+        topbarAvatar.title = email;
+        topbarAvatar.style.background = "linear-gradient(135deg, #10b981, #06b6d4)";
+        topbarAvatar.style.boxShadow = "0 0 12px rgba(16, 185, 129, 0.4)";
+      }
     } else {
-      nameEl.textContent = "Sign In";
-      nameEl.title = "Click to sign in or create account";
-      planEl.textContent = "Cloud Account";
-      planEl.style.color = "var(--text-muted)";
-      avatarEl.textContent = "👤";
-      avatarEl.style.background = "linear-gradient(135deg, #8b5cf6, #ec4899)";
-      avatarEl.style.boxShadow = "0 0 12px rgba(139, 92, 246, 0.3)";
+      if (nameEl) {
+        nameEl.textContent = "Sign In";
+        nameEl.title = "Click to sign in or create account";
+      }
+      if (planEl) {
+        planEl.textContent = "Cloud Account";
+        planEl.style.color = "var(--text-muted)";
+      }
+      if (avatarEl) {
+        avatarEl.textContent = "👤";
+        avatarEl.style.background = "linear-gradient(135deg, #8b5cf6, #ec4899)";
+        avatarEl.style.boxShadow = "0 0 12px rgba(139, 92, 246, 0.3)";
+      }
+      if (topbarAvatar) {
+        topbarAvatar.textContent = "👤";
+        topbarAvatar.title = "Click to sign in or create account";
+        topbarAvatar.style.background = "linear-gradient(135deg, #ec4899, #8b5cf6)";
+        topbarAvatar.style.boxShadow = "";
+      }
     }
   }
 
