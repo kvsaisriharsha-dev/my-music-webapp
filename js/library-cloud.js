@@ -7,6 +7,7 @@ import { getSupabase } from './supabase.js';
 import { authManager } from './auth.js';
 import { songsCloud } from './songs-cloud.js';
 import { dataStore } from './data.js';
+import { syncCoordinator } from './sync-coordinator.js';
 
 class MusicOSLibraryCloud {
   constructor() {
@@ -177,16 +178,15 @@ class MusicOSLibraryCloud {
    * @returns {Promise<{success: boolean, songsSynced: number, librarySynced: number}>}
    */
   async syncUserLibrary() {
-    if (this.isSyncing) return { success: true, songsSynced: 0, librarySynced: 0 };
-    const userId = this.getAuthenticatedUserId();
-    const client = getSupabase();
+    return syncCoordinator.runDeduplicated('library', async () => {
+      const userId = this.getAuthenticatedUserId();
+      const client = getSupabase();
 
-    if (!client || !userId) {
-      return { success: false, songsSynced: 0, librarySynced: 0 };
-    }
+      if (!client || !userId) {
+        return { success: false, songsSynced: 0, librarySynced: 0 };
+      }
 
-    this.isSyncing = true;
-    console.log('🔄 [LibraryCloud] Initiating controlled cloud synchronization for user:', userId);
+      console.log('🔄 [LibraryCloud] Initiating controlled cloud synchronization for user:', userId);
 
     try {
       // 1. Read existing local songs from dataStore
@@ -271,17 +271,16 @@ class MusicOSLibraryCloud {
         }
       }
 
-      return {
-        success: true,
-        songsSynced: songsResult.count,
-        librarySynced: librarySyncedCount
-      };
-    } catch (err) {
-      console.error('❌ [LibraryCloud] Full sync exception:', err);
-      return { success: false, songsSynced: 0, librarySynced: 0, error: err.message };
-    } finally {
-      this.isSyncing = false;
-    }
+        return {
+          success: true,
+          songsSynced: songsResult.count,
+          librarySynced: librarySyncedCount
+        };
+      } catch (err) {
+        console.error('❌ [LibraryCloud] Full sync exception:', err);
+        return { success: false, songsSynced: 0, librarySynced: 0, error: err.message };
+      }
+    });
   }
 }
 

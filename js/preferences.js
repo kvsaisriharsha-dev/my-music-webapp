@@ -6,6 +6,7 @@
 import { getSupabase } from './supabase.js';
 import { authManager } from './auth.js';
 import { themeManager } from './themes.js';
+import { syncCoordinator } from './sync-coordinator.js';
 
 class MusicOSPreferences {
   constructor() {
@@ -208,38 +209,35 @@ class MusicOSPreferences {
    * Synchronizes preferences from Supabase into the active themeManager upon login.
    */
   async syncPreferences() {
-    if (this.isSyncing) return;
-    this.isSyncing = true;
+    return syncCoordinator.runDeduplicated('preferences', async () => {
+      try {
+        const prefs = await this.getUserPreferences();
+        if (prefs) {
+          console.log('🔄 [Preferences] Syncing cloud preferences to Theme Studio:', prefs.active_theme);
 
-    try {
-      const prefs = await this.getUserPreferences();
-      if (prefs) {
-        console.log('🔄 [Preferences] Syncing cloud preferences to Theme Studio:', prefs.active_theme);
+          // Apply theme from Supabase
+          if (prefs.active_theme && prefs.active_theme !== themeManager.currentTheme) {
+            themeManager.applyTheme(prefs.active_theme, true);
+          }
 
-        // Apply theme from Supabase
-        if (prefs.active_theme && prefs.active_theme !== themeManager.currentTheme) {
-          themeManager.applyTheme(prefs.active_theme, true);
+          // Apply background sliders if present in preferences JSONB
+          const jsonb = prefs.preferences;
+          if (jsonb && typeof jsonb === 'object') {
+            if (typeof jsonb.bgOpacity === 'number') {
+              themeManager.setBgOpacity(jsonb.bgOpacity);
+            }
+            if (typeof jsonb.bgBlur === 'number') {
+              themeManager.setBgBlur(jsonb.bgBlur);
+            }
+            if (typeof jsonb.customBgUrl === 'string' && jsonb.customBgUrl) {
+              themeManager.applyCustomBackground(jsonb.customBgUrl, true);
+            }
+          }
         }
-
-        // Apply background sliders if present in preferences JSONB
-        const jsonb = prefs.preferences;
-        if (jsonb && typeof jsonb === 'object') {
-          if (typeof jsonb.bgOpacity === 'number') {
-            themeManager.setBgOpacity(jsonb.bgOpacity);
-          }
-          if (typeof jsonb.bgBlur === 'number') {
-            themeManager.setBgBlur(jsonb.bgBlur);
-          }
-          if (typeof jsonb.customBgUrl === 'string' && jsonb.customBgUrl) {
-            themeManager.applyCustomBackground(jsonb.customBgUrl, true);
-          }
-        }
+      } catch (err) {
+        console.error('❌ [Preferences] Sync error:', err);
       }
-    } catch (err) {
-      console.error('❌ [Preferences] Sync error:', err);
-    } finally {
-      this.isSyncing = false;
-    }
+    });
   }
 }
 

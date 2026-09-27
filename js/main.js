@@ -19,6 +19,7 @@ import { playlistsCloud } from './playlists-cloud.js';
 import { historyCloud } from './history-cloud.js';
 import { statsCloud } from './stats-cloud.js';
 import { lyricsCloud } from './lyrics-cloud.js';
+import { syncCoordinator } from './sync-coordinator.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log("🌌 Initializing MUSIC OS – Your Personal Music Lounge...");
@@ -42,6 +43,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       playlistsCloud.syncPlaylists().catch(err => console.debug('[Playlists Sync]', err));
       statsCloud.reconcileStats().catch(err => console.debug('[Stats Reconcile]', err));
       lyricsCloud.syncLyrics().catch(err => console.debug('[Lyrics Sync]', err));
+    } else {
+      syncCoordinator.handleSignOut();
     }
   });
 

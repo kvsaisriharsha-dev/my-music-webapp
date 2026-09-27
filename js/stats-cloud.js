@@ -6,6 +6,7 @@
 import { getSupabase } from './supabase.js';
 import { authManager } from './auth.js';
 import { dataStore } from './data.js';
+import { syncCoordinator } from './sync-coordinator.js';
 
 class MusicOSStatsCloud {
   constructor() {
@@ -94,32 +95,38 @@ class MusicOSStatsCloud {
     const userId = this.getAuthenticatedUserId();
     if (!userId) return;
 
-    try {
-      const cloudRecord = await this.getListeningStats();
-      const localSeconds = dataStore.listeningSeconds || 0;
+    return syncCoordinator.runDeduplicated('stats', async () => {
+      return syncCoordinator.executeWithRetry('stats', async () => {
+        try {
+          const cloudRecord = await this.getListeningStats();
+          const localSeconds = dataStore.listeningSeconds || 0;
 
-      if (cloudRecord && typeof cloudRecord.listening_seconds === 'number') {
-        const cloudSeconds = cloudRecord.listening_seconds;
-        // Merge strategy: choose the higher value so neither device loses progress
-        const mergedSeconds = Math.max(localSeconds, cloudSeconds);
-        dataStore.listeningSeconds = mergedSeconds;
-        localStorage.setItem("music_os_listening_seconds", mergedSeconds.toString());
-        this.lastSyncedSeconds = mergedSeconds;
+          if (cloudRecord && typeof cloudRecord.listening_seconds === 'number') {
+            const cloudSeconds = cloudRecord.listening_seconds;
+            // Merge strategy: choose the higher value so neither device loses progress
+            const mergedSeconds = Math.max(localSeconds, cloudSeconds);
+            dataStore.listeningSeconds = mergedSeconds;
+            localStorage.setItem("music_os_listening_seconds", mergedSeconds.toString());
+            this.lastSyncedSeconds = mergedSeconds;
 
-        if (mergedSeconds > cloudSeconds) {
-          await this.syncListeningStats(mergedSeconds);
+            if (mergedSeconds > cloudSeconds) {
+              await this.syncListeningStats(mergedSeconds);
+            }
+
+            if (window.musicOSUI && typeof window.musicOSUI.renderStats === 'function') {
+              window.musicOSUI.renderStats();
+            }
+          } else {
+            // Initial setup for user with no listening_stats row
+            await this.syncListeningStats(localSeconds);
+          }
+          return { success: true };
+        } catch (err) {
+          console.error('❌ [StatsCloud] reconcileStats exception:', err);
+          return { success: false, error: err.message };
         }
-
-        if (window.musicOSUI && typeof window.musicOSUI.renderStats === 'function') {
-          window.musicOSUI.renderStats();
-        }
-      } else {
-        // Initial setup for user with no listening_stats row
-        await this.syncListeningStats(localSeconds);
-      }
-    } catch (err) {
-      console.error('❌ [StatsCloud] reconcileStats exception:', err);
-    }
+      }, { userId });
+    });
   }
 
   /**
