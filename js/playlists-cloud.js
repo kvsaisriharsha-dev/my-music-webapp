@@ -1,23 +1,26 @@
 /* ==========================================================================
    MUSIC OS - Supabase Playlists & Playlist Songs Manager
-   Synchronizes user-owned playlists and many-to-many playlist-song relations.
+   Synchronizes user-owned playlists and many-to-many playlist-song relations
+   with user-scoped cloud ID mapping for multi-user isolation.
    ========================================================================== */
 
 import { getSupabase } from './supabase.js';
 import { authManager } from './auth.js';
 import { songsCloud } from './songs-cloud.js';
 import { dataStore } from './data.js';
+import { playlistCloudIds } from './playlist-cloud-ids.js';
 
 /**
- * Transforms a local playlist object into a row for public.playlists.
+ * Transforms a local playlist object into a row for public.playlists using the mapped cloud ID.
  * @param {object} pl 
  * @param {string} userId 
  * @returns {object}
  */
 export function mapPlaylistToDb(pl, userId) {
   if (!pl || !userId) return null;
+  const cloudId = playlistCloudIds.resolveCloudId(userId, pl.id);
   return {
-    id: String(pl.id),
+    id: String(cloudId),
     user_id: userId,
     name: pl.name || 'Untitled Playlist',
     category: pl.category || 'Custom',
@@ -32,14 +35,16 @@ export function mapPlaylistToDb(pl, userId) {
  * Transforms a database row and associated song IDs into a local playlist object.
  * @param {object} row 
  * @param {Array<string>} [songIds=[]] 
+ * @param {string} [userId=null]
  * @returns {object}
  */
-export function mapDbToPlaylist(row, songIds = []) {
+export function mapDbToPlaylist(row, songIds = [], userId = null) {
   if (!row) return null;
+  const localId = userId ? playlistCloudIds.getLocalId(userId, row.id) : row.id;
   return {
-    id: row.id,
+    id: localId,
     name: row.name || 'Untitled Playlist',
-    count: songIds.length || row.count || 0,
+    count: songIds.length || 0,
     icon: row.icon || 'music',
     gradient: row.gradient || 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)',
     category: row.category || 'Custom',
@@ -77,7 +82,7 @@ class MusicOSPlaylistsCloud {
 
     const record = mapPlaylistToDb(playlist, userId);
     try {
-      // 1. Upsert playlist metadata
+      // 1. Upsert playlist metadata using user-scoped cloud ID
       const { error: plError } = await client
         .from('playlists')
         .upsert(record, { onConflict: 'id' });
@@ -139,7 +144,7 @@ class MusicOSPlaylistsCloud {
 
   /**
    * Replaces/Synchronizes playlist_songs relationships for a specific playlist preserving exact positions.
-   * @param {string} playlistId 
+   * @param {string} playlistId (local ID)
    * @param {Array<string>} songIds 
    * @returns {Promise<{success: boolean, error?: string}>}
    */
@@ -151,12 +156,14 @@ class MusicOSPlaylistsCloud {
       return { success: false, error: 'Invalid parameters' };
     }
 
+    const cloudId = playlistCloudIds.resolveCloudId(userId, playlistId);
+
     try {
-      // 1. Delete existing relations for this playlist
+      // 1. Delete existing relations for this cloud playlist
       await client
         .from('playlist_songs')
         .delete()
-        .eq('playlist_id', String(playlistId));
+        .eq('playlist_id', String(cloudId));
 
       if (songIds.length === 0) return { success: true };
 
@@ -178,9 +185,9 @@ class MusicOSPlaylistsCloud {
         return { success: true };
       }
 
-      // 2. Prepare new ordered records
+      // 2. Prepare new ordered records using cloud ID
       const relations = validSongIds.map((songId, index) => ({
-        playlist_id: String(playlistId),
+        playlist_id: String(cloudId),
         song_id: String(songId),
         position: index,
         added_at: new Date().toISOString()
@@ -192,7 +199,7 @@ class MusicOSPlaylistsCloud {
         .insert(relations);
 
       if (error) {
-        console.warn(`⚠️ [PlaylistsCloud] Error inserting playlist_songs for ${playlistId}:`, error.message);
+        console.warn(`⚠️ [PlaylistsCloud] Error inserting playlist_songs for ${playlistId} (${cloudId}):`, error.message);
         return { success: false, error: error.message };
       }
 
@@ -205,7 +212,7 @@ class MusicOSPlaylistsCloud {
 
   /**
    * Adds a single song to a playlist at a specific position or at the end.
-   * @param {string} playlistId 
+   * @param {string} playlistId (local ID)
    * @param {string} songId 
    * @param {number} [position] 
    * @returns {Promise<{success: boolean, error?: string}>}
@@ -218,9 +225,11 @@ class MusicOSPlaylistsCloud {
       return { success: false, error: 'Unauthenticated or invalid parameters' };
     }
 
+    const cloudId = playlistCloudIds.resolveCloudId(userId, playlistId);
+
     try {
       const record = {
-        playlist_id: String(playlistId),
+        playlist_id: String(cloudId),
         song_id: String(songId),
         position: Math.max(0, position),
         added_at: new Date().toISOString()
@@ -239,7 +248,7 @@ class MusicOSPlaylistsCloud {
       await client
         .from('playlists')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', String(playlistId))
+        .eq('id', String(cloudId))
         .eq('user_id', userId);
 
       return { success: true };
@@ -252,7 +261,7 @@ class MusicOSPlaylistsCloud {
   /**
    * Removes a song relationship from a playlist.
    * Does NOT delete the song from public.songs or user_library.
-   * @param {string} playlistId 
+   * @param {string} playlistId (local ID)
    * @param {string} songId 
    * @returns {Promise<{success: boolean, error?: string}>}
    */
@@ -264,11 +273,13 @@ class MusicOSPlaylistsCloud {
       return { success: false, error: 'Unauthenticated or invalid parameters' };
     }
 
+    const cloudId = playlistCloudIds.resolveCloudId(userId, playlistId);
+
     try {
       const { error } = await client
         .from('playlist_songs')
         .delete()
-        .eq('playlist_id', String(playlistId))
+        .eq('playlist_id', String(cloudId))
         .eq('song_id', String(songId));
 
       if (error) {
@@ -280,7 +291,7 @@ class MusicOSPlaylistsCloud {
       await client
         .from('playlists')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', String(playlistId))
+        .eq('id', String(cloudId))
         .eq('user_id', userId);
 
       return { success: true };
@@ -293,7 +304,7 @@ class MusicOSPlaylistsCloud {
   /**
    * Deletes a playlist and its relationships from Supabase.
    * Does NOT delete the referenced songs from public.songs or user_library.
-   * @param {string} playlistId 
+   * @param {string} playlistId (local ID)
    * @returns {Promise<{success: boolean, error?: string}>}
    */
   async deletePlaylist(playlistId) {
@@ -304,18 +315,20 @@ class MusicOSPlaylistsCloud {
       return { success: false, error: 'Unauthenticated or invalid playlistId' };
     }
 
+    const cloudId = playlistCloudIds.resolveCloudId(userId, playlistId);
+
     try {
       // 1. Delete associated playlist_songs entries
       await client
         .from('playlist_songs')
         .delete()
-        .eq('playlist_id', String(playlistId));
+        .eq('playlist_id', String(cloudId));
 
       // 2. Delete the playlist record
       const { error } = await client
         .from('playlists')
         .delete()
-        .eq('id', String(playlistId))
+        .eq('id', String(cloudId))
         .eq('user_id', userId);
 
       if (error) {
@@ -323,6 +336,8 @@ class MusicOSPlaylistsCloud {
         return { success: false, error: error.message };
       }
 
+      // Clean up mapping
+      playlistCloudIds.removeMapping(userId, playlistId);
       return { success: true };
     } catch (err) {
       console.error('❌ [PlaylistsCloud] deletePlaylist exception:', err);
@@ -332,7 +347,7 @@ class MusicOSPlaylistsCloud {
 
   /**
    * Updates is_favorite status on a playlist in Supabase.
-   * @param {string} playlistId 
+   * @param {string} playlistId (local ID)
    * @param {boolean} isFavorite 
    * @returns {Promise<{success: boolean, error?: string}>}
    */
@@ -344,6 +359,8 @@ class MusicOSPlaylistsCloud {
       return { success: false, error: 'Unauthenticated or invalid parameters' };
     }
 
+    const cloudId = playlistCloudIds.resolveCloudId(userId, playlistId);
+
     try {
       const { error } = await client
         .from('playlists')
@@ -351,7 +368,7 @@ class MusicOSPlaylistsCloud {
           is_favorite: Boolean(isFavorite),
           updated_at: new Date().toISOString()
         })
-        .eq('id', String(playlistId))
+        .eq('id', String(cloudId))
         .eq('user_id', userId);
 
       if (error) {
@@ -405,7 +422,7 @@ class MusicOSPlaylistsCloud {
         });
       }
 
-      return playlistsData.map(row => mapDbToPlaylist(row, songsByPlaylist.get(row.id) || []));
+      return playlistsData.map(row => mapDbToPlaylist(row, songsByPlaylist.get(row.id) || [], userId));
     } catch (err) {
       console.error('❌ [PlaylistsCloud] getUserPlaylists exception:', err);
       return [];
@@ -439,10 +456,19 @@ class MusicOSPlaylistsCloud {
       const allSongs = dataStore.getSongs();
       await songsCloud.upsertSongs(allSongs);
 
-      // Upsert playlists and relationships
+      // 1. Fetch user's existing cloud playlists to reconcile mappings and preserve ownership
+      const { data: rawCloudPlaylists } = await client
+        .from('playlists')
+        .select('*')
+        .eq('user_id', userId);
+
+      // 2. Reconcile user-scoped local-to-cloud ID mappings
+      playlistCloudIds.reconcileUserMappings(userId, rawCloudPlaylists || [], localPlaylists);
+
+      // 3. Upsert playlists and relationships with user-scoped cloud IDs
       const result = await this.upsertPlaylists(localPlaylists);
 
-      // Reconcile cloud favorite states if cloud has previously saved favorites
+      // 4. Reconcile cloud favorite states if cloud has previously saved favorites
       const cloudPlaylists = await this.getUserPlaylists();
       if (cloudPlaylists && cloudPlaylists.length > 0) {
         const cloudFavMap = new Map(cloudPlaylists.map(cp => [cp.id, cp.isFavorite]));
