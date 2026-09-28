@@ -1,12 +1,14 @@
 /* ==========================================================================
-   MUSIC OS - Sync Reliability & Offline/Online Recovery Coordinator
-   Centralizes network state, transient error classification, exponential
-   backoff retries, user-scoped dirty state, and coordinated recovery.
+   MUSIC OS - Sync Observability & Reliability Coordinator (Stage 9)
+   Centralizes network state, structured observability model, per-category
+   status tracking, transient error classification, exponential backoff retries,
+   user-scoped persistent dirty state, and coordinated online recovery.
    ========================================================================== */
 
 import { authManager } from './auth.js';
 
 const SYNC_STATE_STORAGE_KEY = 'music_os_sync_state';
+const KNOWN_CATEGORIES = ['preferences', 'library', 'playlists', 'stats', 'lyrics'];
 
 class MusicOSSyncCoordinator {
   constructor() {
@@ -20,6 +22,13 @@ class MusicOSSyncCoordinator {
     this.visibilityRecoveryTimer = null;
     this.lastVisibilitySyncTime = 0;
     this.listeners = new Set();
+    this.statusListeners = new Set();
+
+    // Active retry metadata for observability
+    this.currentRetryCategory = null;
+    this.currentRetryAttempt = 0;
+    this.maxRetryAttempts = 3;
+    this.lastError = null;
 
     this.initNetworkListeners();
   }
@@ -33,7 +42,7 @@ class MusicOSSyncCoordinator {
     window.addEventListener('online', () => {
       console.log('🌐 [SyncCoordinator] Network connection restored (online event).');
       this.setNetworkState('online');
-      this.scheduleOnlineRecovery();
+      this.scheduleOnlineRecovery('online_event');
     });
 
     window.addEventListener('offline', () => {
@@ -55,6 +64,7 @@ class MusicOSSyncCoordinator {
     if (this.networkState !== state) {
       this.networkState = state;
       this.notifyListeners(state);
+      this.notifyStatusListeners();
     }
   }
 
@@ -74,6 +84,14 @@ class MusicOSSyncCoordinator {
     return () => this.listeners.delete(callback);
   }
 
+  onSyncStatusChange(callback) {
+    if (typeof callback === 'function') {
+      this.statusListeners.add(callback);
+      callback(this.getSyncStatus());
+    }
+    return () => this.statusListeners.delete(callback);
+  }
+
   notifyListeners(state) {
     for (const listener of this.listeners) {
       try {
@@ -83,6 +101,21 @@ class MusicOSSyncCoordinator {
       }
     }
   }
+
+  notifyStatusListeners() {
+    const status = this.getSyncStatus();
+    for (const listener of this.statusListeners) {
+      try {
+        listener(status);
+      } catch (err) {
+        console.error('[SyncCoordinator] Status listener error:', err);
+      }
+    }
+  }
+
+  // ==========================================================================
+  // ERROR CLASSIFICATION & NORMALIZATION
+  // ==========================================================================
 
   /**
    * Classifies an error into Transient (retryable) vs Non-Transient (permanent).
@@ -102,7 +135,7 @@ class MusicOSSyncCoordinator {
     }
 
     // 3. Error object inspection
-    if (!err) return false;
+    if (!err) return status === 0;
     const msg = (err.message || String(err)).toLowerCase();
     const code = err.code || '';
 
@@ -131,7 +164,79 @@ class MusicOSSyncCoordinator {
   }
 
   /**
-   * Wraps an asynchronous cloud operation with timeout safety and bounded exponential backoff retries.
+   * Normalizes an error into a structured, safe observability object.
+   * Never exposes sensitive tokens, authorization headers, or keys.
+   * @param {any} err 
+   * @param {number} [status=0] 
+   * @returns {{type: string, status: number|null, message: string} | null}
+   */
+  normalizeError(err, status = 0) {
+    if (!err && !status) return null;
+
+    let rawMsg = '';
+    let code = '';
+    let name = '';
+
+    if (typeof err === 'string') {
+      rawMsg = err;
+    } else if (err && typeof err === 'object') {
+      rawMsg = err.message || (typeof err.error === 'string' ? err.error : JSON.stringify(err));
+      code = err.code || '';
+      name = err.name || '';
+      if (!status && typeof err.status === 'number') {
+        status = err.status;
+      }
+    }
+
+    const lowerMsg = rawMsg.toLowerCase();
+    let type = 'unknown';
+
+    if (status === 401 || lowerMsg.includes('jwt') || lowerMsg.includes('unauthenticated')) {
+      type = 'authentication';
+    } else if (status === 403 || code === '42501' || lowerMsg.includes('row-level security') || lowerMsg.includes('unauthorized') || lowerMsg.includes('permission denied')) {
+      type = 'authorization';
+    } else if (status === 409 || code === '23505' || lowerMsg.includes('conflict') || lowerMsg.includes('already exists')) {
+      type = 'conflict';
+    } else if (code === 'PGRST204' || code === '23503' || lowerMsg.includes('schema') || lowerMsg.includes('column') || lowerMsg.includes('foreign key')) {
+      type = 'schema';
+    } else if (status === 400 || status === 422 || lowerMsg.includes('invalid') || lowerMsg.includes('validation')) {
+      type = 'validation';
+    } else if (status >= 500 && status <= 599) {
+      type = 'server';
+    } else if (status === 408 || lowerMsg.includes('timeout') || name === 'AbortError') {
+      type = 'timeout';
+    } else if (
+      status === 0 ||
+      lowerMsg.includes('fetch') ||
+      lowerMsg.includes('network') ||
+      lowerMsg.includes('failed to fetch') ||
+      lowerMsg.includes('connection') ||
+      lowerMsg.includes('econnrefused') ||
+      lowerMsg.includes('ehostunreach') ||
+      name === 'TypeError'
+    ) {
+      type = 'network';
+    }
+
+    // Sanitize message to strip any tokens or credentials
+    const cleanMsg = rawMsg
+      .replace(/bearer\s+[A-Za-z0-9-_.]+/gi, 'Bearer [REDACTED]')
+      .replace(/apikey=[A-Za-z0-9-_.]+/gi, 'apikey=[REDACTED]');
+
+    return {
+      type,
+      status: status || null,
+      message: cleanMsg || `Encountered ${type} error`
+    };
+  }
+
+  // ==========================================================================
+  // RETRY ENGINE & RESILIENCE
+  // ==========================================================================
+
+  /**
+   * Wraps an asynchronous cloud operation with timeout safety, exponential backoff retries,
+   * and structured result normalization.
    * @param {string} category Logical sync category (e.g. 'playlists', 'library')
    * @param {Function} taskFn Function returning a Promise
    * @param {object} [options]
@@ -139,26 +244,45 @@ class MusicOSSyncCoordinator {
    * @param {number} [options.timeoutMs=12000]
    * @param {number} [options.initialDelayMs=1000]
    * @param {string} [options.userId=null]
-   * @returns {Promise<{success: boolean, data?: any, error?: string, wasRetried?: boolean}>}
+   * @returns {Promise<{success: boolean, category: string, attempts: number, durationMs: number, data?: any, error: object|null, wasRetried?: boolean}>}
    */
   async executeWithRetry(category, taskFn, options = {}) {
+    const startTime = Date.now();
     const maxAttempts = options.maxAttempts ?? 3;
     const timeoutMs = options.timeoutMs ?? 12000;
     const initialDelayMs = options.initialDelayMs ?? 1000;
     const userId = options.userId || authManager.getCurrentUser()?.id || null;
 
+    this.maxRetryAttempts = maxAttempts;
     let attempt = 0;
     let lastError = null;
     let lastStatus = 0;
 
+    if (userId) {
+      this.setCategoryStatus(userId, category, 'syncing');
+    }
+
     while (attempt < maxAttempts) {
       attempt++;
+      this.currentRetryCategory = category;
+      this.currentRetryAttempt = attempt;
 
-      // Check current network status before making request
+      // Check offline status before network dispatch
       if (typeof navigator !== 'undefined' && navigator.onLine === false) {
         this.setNetworkState('offline');
-        if (userId) this.markCategoryDirty(userId, category);
-        return { success: false, error: 'Device is offline. Task marked for online recovery.' };
+        const normalizedErr = this.normalizeError('Device is offline. Task marked for online recovery.', 0);
+        if (userId) {
+          this.setCategoryStatus(userId, category, 'pending', { error: normalizedErr });
+          this.markCategoryDirty(userId, category);
+        }
+        this.resetRetryState();
+        return {
+          success: false,
+          category,
+          attempts: attempt,
+          durationMs: Date.now() - startTime,
+          error: normalizedErr
+        };
       }
 
       try {
@@ -174,35 +298,70 @@ class MusicOSSyncCoordinator {
 
         const result = await Promise.race([taskPromise, timeoutPromise]);
 
-        // Check if task returned a result object with error
+        // Check if task returned a failure object
         if (result && typeof result === 'object' && result.success === false && result.error) {
           lastError = result.error;
           lastStatus = result.status || 0;
 
           if (!this.isTransientError(result.error, lastStatus)) {
-            // Permanent failure -> Do NOT retry
-            console.warn(`🛑 [SyncCoordinator] Permanent failure in "${category}" (HTTP ${lastStatus}): ${result.error}. Not retrying.`);
-            return result;
+            const normalizedErr = this.normalizeError(result.error, lastStatus);
+            console.warn(`🛑 [SyncCoordinator] Permanent failure in "${category}" (${normalizedErr.type}): ${normalizedErr.message}. Not retrying.`);
+            if (userId) {
+              this.setCategoryStatus(userId, category, 'failed', { error: normalizedErr, retryCount: attempt });
+            }
+            this.lastError = normalizedErr;
+            this.resetRetryState();
+            return {
+              success: false,
+              category,
+              attempts: attempt,
+              durationMs: Date.now() - startTime,
+              error: normalizedErr,
+              data: result
+            };
           }
         } else {
-          // Success! Clear dirty state
+          // Success! Clear dirty and mark synced
+          const durationMs = Date.now() - startTime;
           if (userId) {
+            this.setCategoryStatus(userId, category, 'synced', { error: null, retryCount: 0 });
             this.clearCategoryDirty(userId, category);
+            this.updateLastSuccessfulSyncAt(userId);
           }
-          return typeof result === 'object' ? result : { success: true, data: result };
+          this.lastError = null;
+          this.resetRetryState();
+          return {
+            success: true,
+            category,
+            attempts: attempt,
+            durationMs,
+            data: result,
+            error: null
+          };
         }
       } catch (err) {
         lastError = err;
         lastStatus = err.status || 0;
 
         if (!this.isTransientError(err, lastStatus)) {
-          // Permanent failure -> Do NOT retry
-          console.warn(`🛑 [SyncCoordinator] Non-transient error in "${category}": ${err.message || err}. Not retrying.`);
-          return { success: false, error: err.message || String(err) };
+          const normalizedErr = this.normalizeError(err, lastStatus);
+          console.warn(`🛑 [SyncCoordinator] Non-transient error in "${category}" (${normalizedErr.type}): ${normalizedErr.message}. Not retrying.`);
+          if (userId) {
+            this.setCategoryStatus(userId, category, 'failed', { error: normalizedErr, retryCount: attempt });
+          }
+          this.lastError = normalizedErr;
+          this.resetRetryState();
+          return {
+            success: false,
+            category,
+            attempts: attempt,
+            durationMs: Date.now() - startTime,
+            error: normalizedErr
+          };
         }
       }
 
-      // If we got here, a transient error occurred. Calculate backoff delay with jitter
+      // If transient error occurred, apply exponential backoff with jitter
       if (attempt < maxAttempts) {
         this.setNetworkState('degraded');
         const jitter = Math.random() * 400;
@@ -213,16 +372,28 @@ class MusicOSSyncCoordinator {
       }
     }
 
-    // All retry attempts exhausted: Mark category dirty for recovery when connectivity stabilizes
-    console.warn(`⚠️ [SyncCoordinator] All ${maxAttempts} retry attempts exhausted for "${category}". Marking category as pending.`);
+    // All retries exhausted
+    const normalizedErr = this.normalizeError(lastError || 'Max retries exhausted for transient error.', lastStatus);
+    console.warn(`⚠️ [SyncCoordinator] All ${maxAttempts} retries exhausted for "${category}". Marking category as pending.`);
     if (userId) {
+      this.setCategoryStatus(userId, category, 'failed', { error: normalizedErr, retryCount: maxAttempts });
       this.markCategoryDirty(userId, category);
     }
+    this.lastError = normalizedErr;
+    this.resetRetryState();
     return {
       success: false,
-      error: lastError?.message || lastError || 'Max retries exhausted for transient error.',
+      category,
+      attempts: maxAttempts,
+      durationMs: Date.now() - startTime,
+      error: normalizedErr,
       wasRetried: true
     };
+  }
+
+  resetRetryState() {
+    this.currentRetryCategory = null;
+    this.currentRetryAttempt = 0;
   }
 
   /**
@@ -243,18 +414,20 @@ class MusicOSSyncCoordinator {
         return await syncFn();
       } finally {
         this.inFlightSyncs.delete(category);
+        this.notifyStatusListeners();
       }
     })();
 
     this.inFlightSyncs.set(category, promise);
+    this.notifyStatusListeners();
     return promise;
   }
 
   // ==========================================================================
-  // USER-SCOPED DIRTY STATE PERSISTENCE
+  // USER-SCOPED PERSISTENCE & OBSERVABILITY STATE
   // ==========================================================================
 
-  getDirtyState() {
+  getStorageState() {
     try {
       if (typeof localStorage === 'undefined') return {};
       const raw = localStorage.getItem(SYNC_STATE_STORAGE_KEY);
@@ -264,50 +437,167 @@ class MusicOSSyncCoordinator {
     }
   }
 
-  saveDirtyState(state) {
+  saveStorageState(state) {
     try {
       if (typeof localStorage === 'undefined') return;
       localStorage.setItem(SYNC_STATE_STORAGE_KEY, JSON.stringify(state));
+      this.notifyStatusListeners();
     } catch (err) {
-      console.warn('⚠️ [SyncCoordinator] Error saving dirty state:', err);
+      console.warn('⚠️ [SyncCoordinator] Error saving sync state:', err);
     }
+  }
+
+  /**
+   * Normalizes and retrieves user-scoped state with full backward compatibility.
+   * @param {string} userId 
+   * @returns {object}
+   */
+  getUserState(userId) {
+    if (!userId) return this.createDefaultUserState();
+    const allState = this.getStorageState();
+    const rawUserState = allState[userId];
+
+    if (!rawUserState || typeof rawUserState !== 'object') {
+      return this.createDefaultUserState();
+    }
+
+    // Handle backward compatibility with Stage 8 format { playlists: true }
+    if (typeof rawUserState.dirty === 'undefined' && typeof rawUserState.categories === 'undefined') {
+      const defaultState = this.createDefaultUserState();
+      for (const cat of KNOWN_CATEGORIES) {
+        if (rawUserState[cat] === true) {
+          defaultState.dirty[cat] = true;
+          defaultState.categories[cat].status = 'pending';
+        }
+      }
+      return defaultState;
+    }
+
+    // Ensure all standard fields exist
+    const userState = {
+      dirty: { ...(rawUserState.dirty || {}) },
+      lastSuccessfulSyncAt: rawUserState.lastSuccessfulSyncAt || null,
+      categories: { ...(rawUserState.categories || {}) }
+    };
+
+    for (const cat of KNOWN_CATEGORIES) {
+      if (!userState.categories[cat]) {
+        userState.categories[cat] = {
+          status: userState.dirty[cat] ? 'pending' : 'idle',
+          lastSuccessAt: null,
+          lastAttemptAt: null,
+          lastError: null,
+          retryCount: 0
+        };
+      }
+    }
+
+    return userState;
+  }
+
+  saveUserState(userId, userState) {
+    if (!userId) return;
+    const allState = this.getStorageState();
+    allState[userId] = userState;
+    this.saveStorageState(allState);
+  }
+
+  createDefaultUserState() {
+    const dirty = {};
+    const categories = {};
+    for (const cat of KNOWN_CATEGORIES) {
+      dirty[cat] = false;
+      categories[cat] = {
+        status: 'idle',
+        lastSuccessAt: null,
+        lastAttemptAt: null,
+        lastError: null,
+        retryCount: 0
+      };
+    }
+    return {
+      dirty,
+      lastSuccessfulSyncAt: null,
+      categories
+    };
   }
 
   markCategoryDirty(userId, category) {
     if (!userId || !category) return;
-    const allState = this.getDirtyState();
-    if (!allState[userId]) allState[userId] = {};
-    allState[userId][category] = true;
-    this.saveDirtyState(allState);
+    const userState = this.getUserState(userId);
+    userState.dirty[category] = true;
+    if (userState.categories[category]) {
+      if (userState.categories[category].status !== 'failed') {
+        userState.categories[category].status = 'pending';
+      }
+    }
+    this.saveUserState(userId, userState);
     console.log(`📌 [SyncCoordinator] Marked "${category}" as pending for user: ${userId}`);
   }
 
   clearCategoryDirty(userId, category) {
     if (!userId || !category) return;
-    const allState = this.getDirtyState();
-    if (allState[userId] && allState[userId][category]) {
-      delete allState[userId][category];
-      if (Object.keys(allState[userId]).length === 0) {
-        delete allState[userId];
-      }
-      this.saveDirtyState(allState);
-      console.log(`✨ [SyncCoordinator] Cleared pending status for "${category}".`);
+    const userState = this.getUserState(userId);
+    if (userState.dirty[category]) {
+      userState.dirty[category] = false;
     }
+    this.saveUserState(userId, userState);
+    console.log(`✨ [SyncCoordinator] Cleared pending status for "${category}".`);
+  }
+
+  setCategoryStatus(userId, category, status, meta = {}) {
+    if (!userId || !category) return;
+    const userState = this.getUserState(userId);
+    if (!userState.categories[category]) {
+      userState.categories[category] = {
+        status: 'idle',
+        lastSuccessAt: null,
+        lastAttemptAt: null,
+        lastError: null,
+        retryCount: 0
+      };
+    }
+
+    const catObj = userState.categories[category];
+    catObj.status = status;
+    catObj.lastAttemptAt = new Date().toISOString();
+
+    if (status === 'synced') {
+      catObj.lastSuccessAt = catObj.lastAttemptAt;
+      catObj.lastError = null;
+      catObj.retryCount = 0;
+    } else if (status === 'failed') {
+      if (meta.error) catObj.lastError = meta.error;
+      if (typeof meta.retryCount === 'number') catObj.retryCount = meta.retryCount;
+    }
+
+    this.saveUserState(userId, userState);
+  }
+
+  updateLastSuccessfulSyncAt(userId) {
+    if (!userId) return;
+    const userState = this.getUserState(userId);
+    userState.lastSuccessfulSyncAt = new Date().toISOString();
+    this.saveUserState(userId, userState);
   }
 
   getDirtyCategories(userId) {
     if (!userId) return [];
-    const allState = this.getDirtyState();
-    const userState = allState[userId];
-    if (!userState || typeof userState !== 'object') return [];
-    return Object.keys(userState).filter(cat => userState[cat] === true);
+    const userState = this.getUserState(userId);
+    return Object.keys(userState.dirty).filter(cat => userState.dirty[cat] === true);
+  }
+
+  getFailedCategories(userId) {
+    if (!userId) return [];
+    const userState = this.getUserState(userId);
+    return Object.keys(userState.categories).filter(cat => userState.categories[cat].status === 'failed');
   }
 
   clearUserTransientState(userId) {
     if (!userId) return;
-    const allState = this.getDirtyState();
+    const allState = this.getStorageState();
     delete allState[userId];
-    this.saveDirtyState(allState);
+    this.saveStorageState(allState);
   }
 
   cancelAllRetryTimers() {
@@ -318,13 +608,48 @@ class MusicOSSyncCoordinator {
   }
 
   // ==========================================================================
+  // STRUCTURED OBSERVABILITY SNAPSHOT
+  // ==========================================================================
+
+  /**
+   * Returns a complete, user-scoped diagnostic snapshot of the synchronization system.
+   * @returns {object}
+   */
+  getSyncStatus() {
+    const user = authManager.getCurrentUser();
+    const userId = user?.id || null;
+    const userState = this.getUserState(userId);
+
+    const syncingCategories = Array.from(this.inFlightSyncs.keys());
+    const pendingCategories = this.getDirtyCategories(userId);
+    const failedCategories = this.getFailedCategories(userId);
+
+    return {
+      networkState: this.networkState,
+      userId: userId,
+      lastSuccessfulSyncAt: userState.lastSuccessfulSyncAt,
+      syncingCategories,
+      pendingCategories,
+      failedCategories,
+      lastError: this.lastError,
+      retry: {
+        category: this.currentRetryCategory,
+        attempt: this.currentRetryAttempt,
+        maxAttempts: this.maxRetryAttempts
+      },
+      categories: { ...userState.categories }
+    };
+  }
+
+  // ==========================================================================
   // ONLINE RECOVERY COORDINATION
   // ==========================================================================
 
   /**
-   * Schedules a debounced online recovery sync when connection is restored.
+   * Schedules debounced online recovery sync when connection is restored.
+   * @param {string} [reason='online_event']
    */
-  scheduleOnlineRecovery() {
+  scheduleOnlineRecovery(reason = 'online_event') {
     if (this.recoveryDebounceTimer) {
       clearTimeout(this.recoveryDebounceTimer);
     }
@@ -332,7 +657,7 @@ class MusicOSSyncCoordinator {
     // Wait 1500ms for connection stabilization
     this.recoveryDebounceTimer = setTimeout(async () => {
       this.recoveryDebounceTimer = null;
-      await this.executeRecovery();
+      await this.executeRecovery(reason);
     }, 1500);
   }
 
@@ -355,14 +680,15 @@ class MusicOSSyncCoordinator {
     if (dirtyCats.length > 0 && this.isOnline()) {
       this.lastVisibilitySyncTime = now;
       console.log(`👁️ [SyncCoordinator] Tab focused with ${dirtyCats.length} pending categories. Scheduling recovery...`);
-      this.scheduleOnlineRecovery();
+      this.scheduleOnlineRecovery('visibility_change');
     }
   }
 
   /**
    * Executes recovery for pending categories sequentially without creating a sync storm.
+   * @param {string} [reason='unknown']
    */
-  async executeRecovery() {
+  async executeRecovery(reason = 'unknown') {
     const user = authManager.getCurrentUser();
     if (!user || !authManager.isAuthenticated()) {
       return;
@@ -377,10 +703,10 @@ class MusicOSSyncCoordinator {
       return;
     }
 
-    console.log(`🔄 [SyncCoordinator] Executing recovery for pending categories: [${dirtyCategories.join(', ')}]...`);
+    console.log(`🔄 [SyncCoordinator] Executing recovery (reason: ${reason}) for pending categories: [${dirtyCategories.join(', ')}]...`);
     this.setNetworkState('syncing');
 
-    // Import cloud modules dynamically / use globally attached instances
+    // Sequential recovery: preferences → library → playlists → stats → lyrics
     for (const category of dirtyCategories) {
       // Re-verify auth state hasn't changed during recovery loop
       if (authManager.getCurrentUser()?.id !== userId) {
@@ -394,40 +720,65 @@ class MusicOSSyncCoordinator {
             if (window.preferencesManager) {
               await window.preferencesManager.syncPreferences();
               this.clearCategoryDirty(userId, 'preferences');
+              this.setCategoryStatus(userId, 'preferences', 'synced');
             }
             break;
           case 'library':
             if (window.libraryCloud) {
               const res = await window.libraryCloud.syncUserLibrary();
-              if (res.success) this.clearCategoryDirty(userId, 'library');
+              if (res.success) {
+                this.clearCategoryDirty(userId, 'library');
+                this.setCategoryStatus(userId, 'library', 'synced');
+              } else {
+                this.setCategoryStatus(userId, 'library', 'failed', { error: this.normalizeError(res.error) });
+              }
             }
             break;
           case 'playlists':
             if (window.playlistsCloud) {
               const res = await window.playlistsCloud.syncPlaylists();
-              if (res.success) this.clearCategoryDirty(userId, 'playlists');
+              if (res.success) {
+                this.clearCategoryDirty(userId, 'playlists');
+                this.setCategoryStatus(userId, 'playlists', 'synced');
+              } else {
+                this.setCategoryStatus(userId, 'playlists', 'failed', { error: this.normalizeError(res.error) });
+              }
             }
             break;
           case 'stats':
             if (window.statsCloud) {
               await window.statsCloud.reconcileStats();
               this.clearCategoryDirty(userId, 'stats');
+              this.setCategoryStatus(userId, 'stats', 'synced');
             }
             break;
           case 'lyrics':
             if (window.lyricsCloud) {
               const res = await window.lyricsCloud.syncLyrics();
-              if (res.success) this.clearCategoryDirty(userId, 'lyrics');
+              if (res.success) {
+                this.clearCategoryDirty(userId, 'lyrics');
+                this.setCategoryStatus(userId, 'lyrics', 'synced');
+              } else {
+                this.setCategoryStatus(userId, 'lyrics', 'failed', { error: this.normalizeError(res.error) });
+              }
             }
             break;
         }
       } catch (err) {
         console.warn(`⚠️ [SyncCoordinator] Recovery for "${category}" encountered an issue:`, err.message || err);
+        this.setCategoryStatus(userId, category, 'failed', { error: this.normalizeError(err) });
       }
     }
 
-    this.setNetworkState('online');
-    console.log('🏁 [SyncCoordinator] Online recovery sequence completed.');
+    const remainingDirty = this.getDirtyCategories(userId);
+    if (remainingDirty.length === 0) {
+      this.updateLastSuccessfulSyncAt(userId);
+      this.setNetworkState('online');
+      console.log('🏁 [SyncCoordinator] All pending categories synchronized successfully.');
+    } else {
+      this.setNetworkState('degraded');
+      console.warn(`⚠️ [SyncCoordinator] Recovery sequence finished. Remaining pending categories: [${remainingDirty.join(', ')}].`);
+    }
   }
 
   /**
@@ -441,6 +792,9 @@ class MusicOSSyncCoordinator {
       this.recoveryDebounceTimer = null;
     }
     this.inFlightSyncs.clear();
+    this.resetRetryState();
+    this.lastError = null;
+    this.notifyStatusListeners();
   }
 }
 

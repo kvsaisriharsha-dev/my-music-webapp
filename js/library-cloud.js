@@ -183,103 +183,105 @@ class MusicOSLibraryCloud {
       const client = getSupabase();
 
       if (!client || !userId) {
-        return { success: false, songsSynced: 0, librarySynced: 0 };
+        return { success: false, songsSynced: 0, librarySynced: 0, error: 'Unauthenticated or client unavailable' };
       }
 
-      console.log('🔄 [LibraryCloud] Initiating controlled cloud synchronization for user:', userId);
+      return syncCoordinator.executeWithRetry('library', async () => {
+        console.log('🔄 [LibraryCloud] Initiating controlled cloud synchronization for user:', userId);
 
-    try {
-      // 1. Read existing local songs from dataStore
-      const localSongs = dataStore.getSongs();
-      if (!Array.isArray(localSongs) || localSongs.length === 0) {
-        this.isSyncing = false;
-        return { success: true, songsSynced: 0, librarySynced: 0 };
-      }
-
-      // 2. Batch upsert songs into public.songs (Catalog)
-      const songsResult = await songsCloud.upsertSongs(localSongs);
-      if (!songsResult.success) {
-        console.warn('⚠️ [LibraryCloud] Songs catalog sync warning (RLS or Network):', songsResult.error);
-      }
-
-      // 3. Filter library records to ensure referenced songs exist in public.songs
-      let songsToSync = localSongs;
-      if (!songsResult.success) {
         try {
-          const { data: existingSongs } = await client
-            .from('songs')
-            .select('id')
-            .in('id', localSongs.map(s => String(s.id)));
-          const existingIds = new Set((existingSongs || []).map(r => r.id));
-          songsToSync = localSongs.filter(s => existingIds.has(String(s.id)));
-          if (songsToSync.length === 0) {
-            console.warn('⚠️ [LibraryCloud] Songs are not present in public.songs catalog yet. Skipping user_library writes to prevent foreign key errors.');
+          // 1. Read existing local songs from dataStore
+          const localSongs = dataStore.getSongs();
+          if (!Array.isArray(localSongs) || localSongs.length === 0) {
+            this.isSyncing = false;
+            return { success: true, songsSynced: 0, librarySynced: 0 };
           }
-        } catch (e) {
-          songsToSync = [];
-        }
-      }
 
-      const libraryRecords = songsToSync.map(song => ({
-        user_id: userId,
-        song_id: String(song.id),
-        liked: Boolean(song.liked),
-        added_at: new Date().toISOString()
-      }));
-
-      const chunkSize = 50;
-      let librarySyncedCount = 0;
-
-      if (libraryRecords.length > 0) {
-        for (let i = 0; i < libraryRecords.length; i += chunkSize) {
-          const chunk = libraryRecords.slice(i, i + chunkSize);
-          const { error } = await client
-            .from('user_library')
-            .upsert(chunk, { onConflict: 'user_id,song_id' });
-
-          if (error) {
-            console.warn(`⚠️ [LibraryCloud] user_library batch upsert chunk error [${i}..${i + chunk.length}]:`, error.message);
-          } else {
-            librarySyncedCount += chunk.length;
+          // 2. Batch upsert songs into public.songs (Catalog)
+          const songsResult = await songsCloud.upsertSongs(localSongs);
+          if (!songsResult.success) {
+            console.warn('⚠️ [LibraryCloud] Songs catalog sync warning (RLS or Network):', songsResult.error);
           }
-        }
-        console.log(`☁️ [LibraryCloud] Synchronized ${librarySyncedCount} tracks to user_library.`);
-      }
 
-      // 4. Fetch cloud user_library to reconcile any previously saved cloud likes into local songs
-      const cloudLibrary = await this.getUserLibrary();
-      if (cloudLibrary && cloudLibrary.length > 0) {
-        const cloudLikeMap = new Map(cloudLibrary.map(item => [item.song_id, item.liked]));
-        let modified = false;
-
-        localSongs.forEach(s => {
-          if (cloudLikeMap.has(String(s.id))) {
-            const cloudLiked = cloudLikeMap.get(String(s.id));
-            if (s.liked !== cloudLiked) {
-              s.liked = cloudLiked;
-              modified = true;
+          // 3. Filter library records to ensure referenced songs exist in public.songs
+          let songsToSync = localSongs;
+          if (!songsResult.success) {
+            try {
+              const { data: existingSongs } = await client
+                .from('songs')
+                .select('id')
+                .in('id', localSongs.map(s => String(s.id)));
+              const existingIds = new Set((existingSongs || []).map(r => r.id));
+              songsToSync = localSongs.filter(s => existingIds.has(String(s.id)));
+              if (songsToSync.length === 0) {
+                console.warn('⚠️ [LibraryCloud] Songs are not present in public.songs catalog yet. Skipping user_library writes to prevent foreign key errors.');
+              }
+            } catch (e) {
+              songsToSync = [];
             }
           }
-        });
 
-        if (modified) {
-          dataStore.save();
-          if (window.musicOSUI && typeof window.musicOSUI.renderRecentlyPlayed === 'function') {
-            window.musicOSUI.renderRecentlyPlayed();
-            window.musicOSUI.renderStats();
+          const libraryRecords = songsToSync.map(song => ({
+            user_id: userId,
+            song_id: String(song.id),
+            liked: Boolean(song.liked),
+            added_at: new Date().toISOString()
+          }));
+
+          const chunkSize = 50;
+          let librarySyncedCount = 0;
+
+          if (libraryRecords.length > 0) {
+            for (let i = 0; i < libraryRecords.length; i += chunkSize) {
+              const chunk = libraryRecords.slice(i, i + chunkSize);
+              const { error } = await client
+                .from('user_library')
+                .upsert(chunk, { onConflict: 'user_id,song_id' });
+
+              if (error) {
+                console.warn(`⚠️ [LibraryCloud] user_library batch upsert chunk error [${i}..${i + chunk.length}]:`, error.message);
+              } else {
+                librarySyncedCount += chunk.length;
+              }
+            }
+            console.log(`☁️ [LibraryCloud] Synchronized ${librarySyncedCount} tracks to user_library.`);
           }
-        }
-      }
 
-        return {
-          success: true,
-          songsSynced: songsResult.count,
-          librarySynced: librarySyncedCount
-        };
-      } catch (err) {
-        console.error('❌ [LibraryCloud] Full sync exception:', err);
-        return { success: false, songsSynced: 0, librarySynced: 0, error: err.message };
-      }
+          // 4. Fetch cloud user_library to reconcile any previously saved cloud likes into local songs
+          const cloudLibrary = await this.getUserLibrary();
+          if (cloudLibrary && cloudLibrary.length > 0) {
+            const cloudLikeMap = new Map(cloudLibrary.map(item => [item.song_id, item.liked]));
+            let modified = false;
+
+            localSongs.forEach(s => {
+              if (cloudLikeMap.has(String(s.id))) {
+                const cloudLiked = cloudLikeMap.get(String(s.id));
+                if (s.liked !== cloudLiked) {
+                  s.liked = cloudLiked;
+                  modified = true;
+                }
+              }
+            });
+
+            if (modified) {
+              dataStore.save();
+              if (window.musicOSUI && typeof window.musicOSUI.renderRecentlyPlayed === 'function') {
+                window.musicOSUI.renderRecentlyPlayed();
+                window.musicOSUI.renderStats();
+              }
+            }
+          }
+
+          return {
+            success: true,
+            songsSynced: songsResult.count,
+            librarySynced: librarySyncedCount
+          };
+        } catch (err) {
+          console.error('❌ [LibraryCloud] Full sync exception:', err);
+          return { success: false, songsSynced: 0, librarySynced: 0, error: err.message };
+        }
+      }, { userId });
     });
   }
 }

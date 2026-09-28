@@ -210,33 +210,42 @@ class MusicOSPreferences {
    */
   async syncPreferences() {
     return syncCoordinator.runDeduplicated('preferences', async () => {
-      try {
-        const prefs = await this.getUserPreferences();
-        if (prefs) {
-          console.log('🔄 [Preferences] Syncing cloud preferences to Theme Studio:', prefs.active_theme);
-
-          // Apply theme from Supabase
-          if (prefs.active_theme && prefs.active_theme !== themeManager.currentTheme) {
-            themeManager.applyTheme(prefs.active_theme, true);
-          }
-
-          // Apply background sliders if present in preferences JSONB
-          const jsonb = prefs.preferences;
-          if (jsonb && typeof jsonb === 'object') {
-            if (typeof jsonb.bgOpacity === 'number') {
-              themeManager.setBgOpacity(jsonb.bgOpacity);
-            }
-            if (typeof jsonb.bgBlur === 'number') {
-              themeManager.setBgBlur(jsonb.bgBlur);
-            }
-            if (typeof jsonb.customBgUrl === 'string' && jsonb.customBgUrl) {
-              themeManager.applyCustomBackground(jsonb.customBgUrl, true);
-            }
-          }
-        }
-      } catch (err) {
-        console.error('❌ [Preferences] Sync error:', err);
+      const userId = this.getAuthenticatedUserId();
+      if (!userId) {
+        return { success: false, error: 'Unauthenticated' };
       }
+
+      return syncCoordinator.executeWithRetry('preferences', async () => {
+        try {
+          const prefs = await this.getUserPreferences();
+          if (prefs) {
+            console.log('🔄 [Preferences] Syncing cloud preferences to Theme Studio:', prefs.active_theme);
+
+            // Apply theme from Supabase
+            if (prefs.active_theme && prefs.active_theme !== themeManager.currentTheme) {
+              themeManager.applyTheme(prefs.active_theme, true);
+            }
+
+            // Apply background sliders if present in preferences JSONB
+            const jsonb = prefs.preferences;
+            if (jsonb && typeof jsonb === 'object') {
+              if (typeof jsonb.bgOpacity === 'number') {
+                themeManager.setBgOpacity(jsonb.bgOpacity);
+              }
+              if (typeof jsonb.bgBlur === 'number') {
+                themeManager.setBgBlur(jsonb.bgBlur);
+              }
+              if (typeof jsonb.customBgUrl === 'string' && jsonb.customBgUrl) {
+                themeManager.applyCustomBackground(jsonb.customBgUrl, true);
+              }
+            }
+          }
+          return { success: true };
+        } catch (err) {
+          console.error('❌ [Preferences] Sync error:', err);
+          return { success: false, error: err.message };
+        }
+      }, { userId });
     });
   }
 }

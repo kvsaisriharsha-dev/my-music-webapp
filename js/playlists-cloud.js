@@ -440,61 +440,63 @@ class MusicOSPlaylistsCloud {
       const client = getSupabase();
 
       if (!client || !userId) {
-        return { success: false, playlistsSynced: 0 };
+        return { success: false, playlistsSynced: 0, error: 'Unauthenticated or client unavailable' };
       }
 
-      console.log('🔄 [PlaylistsCloud] Initiating playlists cloud synchronization for user:', userId);
+      return syncCoordinator.executeWithRetry('playlists', async () => {
+        console.log('🔄 [PlaylistsCloud] Initiating playlists cloud synchronization for user:', userId);
 
-      try {
-        const localPlaylists = dataStore.getPlaylists();
-        if (!Array.isArray(localPlaylists) || localPlaylists.length === 0) {
-          return { success: true, playlistsSynced: 0 };
-        }
-
-        // Ensure all referenced songs exist in public.songs
-        const allSongs = dataStore.getSongs();
-        await songsCloud.upsertSongs(allSongs);
-
-        // 1. Fetch user's existing cloud playlists to reconcile mappings and preserve ownership
-        const { data: rawCloudPlaylists } = await client
-          .from('playlists')
-          .select('*')
-          .eq('user_id', userId);
-
-        // 2. Reconcile user-scoped local-to-cloud ID mappings
-        playlistCloudIds.reconcileUserMappings(userId, rawCloudPlaylists || [], localPlaylists);
-
-        // 3. Upsert playlists and relationships with user-scoped cloud IDs
-        const result = await this.upsertPlaylists(localPlaylists);
-
-        // 4. Reconcile cloud favorite states if cloud has previously saved favorites
-        const cloudPlaylists = await this.getUserPlaylists();
-        if (cloudPlaylists && cloudPlaylists.length > 0) {
-          const cloudFavMap = new Map(cloudPlaylists.map(cp => [cp.id, cp.isFavorite]));
-          let modified = false;
-
-          localPlaylists.forEach(lp => {
-            if (cloudFavMap.has(lp.id)) {
-              const cloudFav = cloudFavMap.get(lp.id);
-              if (lp.isFavorite !== cloudFav) {
-                lp.isFavorite = cloudFav;
-                modified = true;
-              }
-            }
-          });
-
-          if (modified) {
-            dataStore.saveState("music_os_playlists", localPlaylists);
-            dataStore.notifyPlaylistsChange();
+        try {
+          const localPlaylists = dataStore.getPlaylists();
+          if (!Array.isArray(localPlaylists) || localPlaylists.length === 0) {
+            return { success: true, playlistsSynced: 0 };
           }
-        }
 
-        console.log(`☁️ [PlaylistsCloud] Synchronized ${result.count} playlists to Supabase.`);
-        return { success: true, playlistsSynced: result.count };
-      } catch (err) {
-        console.error('❌ [PlaylistsCloud] syncPlaylists exception:', err);
-        return { success: false, playlistsSynced: 0, error: err.message };
-      }
+          // Ensure all referenced songs exist in public.songs
+          const allSongs = dataStore.getSongs();
+          await songsCloud.upsertSongs(allSongs);
+
+          // 1. Fetch user's existing cloud playlists to reconcile mappings and preserve ownership
+          const { data: rawCloudPlaylists } = await client
+            .from('playlists')
+            .select('*')
+            .eq('user_id', userId);
+
+          // 2. Reconcile user-scoped local-to-cloud ID mappings
+          playlistCloudIds.reconcileUserMappings(userId, rawCloudPlaylists || [], localPlaylists);
+
+          // 3. Upsert playlists and relationships with user-scoped cloud IDs
+          const result = await this.upsertPlaylists(localPlaylists);
+
+          // 4. Reconcile cloud favorite states if cloud has previously saved favorites
+          const cloudPlaylists = await this.getUserPlaylists();
+          if (cloudPlaylists && cloudPlaylists.length > 0) {
+            const cloudFavMap = new Map(cloudPlaylists.map(cp => [cp.id, cp.isFavorite]));
+            let modified = false;
+
+            localPlaylists.forEach(lp => {
+              if (cloudFavMap.has(lp.id)) {
+                const cloudFav = cloudFavMap.get(lp.id);
+                if (lp.isFavorite !== cloudFav) {
+                  lp.isFavorite = cloudFav;
+                  modified = true;
+                }
+              }
+            });
+
+            if (modified) {
+              dataStore.saveState("music_os_playlists", localPlaylists);
+              dataStore.notifyPlaylistsChange();
+            }
+          }
+
+          console.log(`☁️ [PlaylistsCloud] Synchronized ${result.count} playlists to Supabase.`);
+          return { success: true, playlistsSynced: result.count };
+        } catch (err) {
+          console.error('❌ [PlaylistsCloud] syncPlaylists exception:', err);
+          return { success: false, playlistsSynced: 0, error: err.message };
+        }
+      }, { userId });
     });
   }
 }

@@ -161,50 +161,53 @@ class MusicOSLyricsCloud {
    */
   async syncLyrics() {
     return syncCoordinator.runDeduplicated('lyrics', async () => {
+      const userId = authManager.getCurrentUser()?.id;
       const client = getSupabase();
 
-      if (!client || !authManager.isAuthenticated()) {
-        return { success: false, lyricsSynced: 0 };
+      if (!client || !userId || !authManager.isAuthenticated()) {
+        return { success: false, lyricsSynced: 0, error: 'Unauthenticated or client unavailable' };
       }
 
-      console.log('🔄 [LyricsCloud] Synchronizing local synchronized lyrics to public.lyrics...');
+      return syncCoordinator.executeWithRetry('lyrics', async () => {
+        console.log('🔄 [LyricsCloud] Synchronizing local synchronized lyrics to public.lyrics...');
 
-      try {
-        const allSongs = dataStore.getSongs();
-        const songsWithLyrics = allSongs.filter(s => s && validateSynchronizedLyrics(s.lyrics));
+        try {
+          const allSongs = dataStore.getSongs();
+          const songsWithLyrics = allSongs.filter(s => s && validateSynchronizedLyrics(s.lyrics));
 
-        if (songsWithLyrics.length === 0) {
-          return { success: true, lyricsSynced: 0 };
-        }
-
-        const records = songsWithLyrics.map(s => ({
-          song_id: String(s.id),
-          lines: validateSynchronizedLyrics(s.lyrics),
-          updated_at: new Date().toISOString()
-        }));
-
-        const chunkSize = 25;
-        let lyricsSyncedCount = 0;
-
-        for (let i = 0; i < records.length; i += chunkSize) {
-          const chunk = records.slice(i, i + chunkSize);
-          const { error } = await client
-            .from('lyrics')
-            .upsert(chunk, { onConflict: 'song_id' });
-
-          if (error) {
-            console.warn(`⚠️ [LyricsCloud] Batch lyrics upsert chunk error [${i}..${i + chunk.length}]:`, error.message);
-          } else {
-            lyricsSyncedCount += chunk.length;
+          if (songsWithLyrics.length === 0) {
+            return { success: true, lyricsSynced: 0 };
           }
-        }
 
-        console.log(`☁️ [LyricsCloud] Synchronized ${lyricsSyncedCount} lyrics records to Supabase.`);
-        return { success: true, lyricsSynced: lyricsSyncedCount };
-      } catch (err) {
-        console.error('❌ [LyricsCloud] syncLyrics exception:', err);
-        return { success: false, lyricsSynced: 0, error: err.message };
-      }
+          const records = songsWithLyrics.map(s => ({
+            song_id: String(s.id),
+            lines: validateSynchronizedLyrics(s.lyrics),
+            updated_at: new Date().toISOString()
+          }));
+
+          const chunkSize = 25;
+          let lyricsSyncedCount = 0;
+
+          for (let i = 0; i < records.length; i += chunkSize) {
+            const chunk = records.slice(i, i + chunkSize);
+            const { error } = await client
+              .from('lyrics')
+              .upsert(chunk, { onConflict: 'song_id' });
+
+            if (error) {
+              console.warn(`⚠️ [LyricsCloud] Batch lyrics upsert chunk error [${i}..${i + chunk.length}]:`, error.message);
+            } else {
+              lyricsSyncedCount += chunk.length;
+            }
+          }
+
+          console.log(`☁️ [LyricsCloud] Synchronized ${lyricsSyncedCount} lyrics records to Supabase.`);
+          return { success: true, lyricsSynced: lyricsSyncedCount };
+        } catch (err) {
+          console.error('❌ [LyricsCloud] syncLyrics exception:', err);
+          return { success: false, lyricsSynced: 0, error: err.message };
+        }
+      }, { userId });
     });
   }
 
